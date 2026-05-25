@@ -63,7 +63,7 @@ export interface Order {
   confirmed_at: string | null
   delivered_at: string | null
   profiles?: Profile
-  products?: Product
+  products?: Partial<Product> | null
 }
 
 export interface OrderWithMetrics extends Order {

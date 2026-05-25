@@ -24,7 +24,7 @@ export default async function AdminOrdersPage() {
 
   return (
     <OrdersManager
-      initialOrders={orders || []}
+      initialOrders={(orders || []) as any}
       products={products || []}
       mediaBuyers={mediaBuyers || []}
     />
