@@ -30,8 +30,11 @@ export async function proxy(request: NextRequest) {
   const isApiAuth = request.nextUrl.pathname.startsWith('/api/auth')
   const isAuthCallback = request.nextUrl.pathname.startsWith('/auth/callback')
   const isResetPassword = request.nextUrl.pathname.startsWith('/reset-password')
+  const isWebhook = request.nextUrl.pathname.startsWith('/api/webhook')
+  const isPublicApi = request.nextUrl.pathname.startsWith('/api/leads')
+  const isLandingPage = request.nextUrl.pathname.startsWith('/lp/')
 
-  if (!user && !isAuthPage && !isApiAuth && !isAuthCallback && !isResetPassword) {
+  if (!user && !isAuthPage && !isApiAuth && !isAuthCallback && !isResetPassword && !isWebhook && !isPublicApi && !isLandingPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
