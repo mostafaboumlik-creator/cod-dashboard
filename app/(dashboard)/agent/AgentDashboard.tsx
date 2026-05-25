@@ -224,7 +224,18 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
                     </td>
                     <td className="px-3 py-2 text-slate-300 text-xs whitespace-nowrap">{order.city || '—'}</td>
                     <td className="px-3 py-2 text-white text-sm font-medium whitespace-nowrap">{order.customer_name || '—'}</td>
-                    <td className="px-3 py-2 text-slate-400 text-xs whitespace-nowrap">{order.products?.name || '—'}</td>
+                    <td className="px-3 py-2 text-xs whitespace-nowrap">
+                      <span className="text-slate-400">{order.products?.name || '—'}</span>
+                      {order.campaign_name && (
+                        <span className={`ml-1.5 text-[10px] font-bold px-1 py-0.5 rounded ${
+                          order.ad_platform === 'facebook' ? 'bg-blue-500/20 text-blue-400' :
+                          order.ad_platform === 'tiktok'   ? 'bg-pink-500/20 text-pink-400' :
+                          'bg-slate-600/40 text-slate-400'
+                        }`}>
+                          {order.ad_platform === 'facebook' ? 'FB' : order.ad_platform === 'tiktok' ? 'TK' : order.campaign_name.slice(-4).trim()}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-slate-300 text-xs whitespace-nowrap font-medium">{order.product_variant || '—'}</td>
                     <td className="px-3 py-2 text-green-400 text-xs whitespace-nowrap font-bold">{order.selling_price ? `${order.selling_price} MAD` : '—'}</td>
                     <td className="px-3 py-2 text-slate-400 text-xs">

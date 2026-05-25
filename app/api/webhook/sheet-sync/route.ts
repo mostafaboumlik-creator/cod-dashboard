@@ -1,6 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function detectPlatform(name: string): 'facebook' | 'tiktok' | 'other' {
+  const n = name.toLowerCase()
+  if (n.includes(' fb') || n.endsWith('fb') || n.includes('facebook')) return 'facebook'
+  if (n.includes(' tk') || n.endsWith('tk') || n.includes('tiktok')) return 'tiktok'
+  return 'other'
+}
+
 function mapEtat(etat: string): string {
   const v = etat.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
   if (v.includes('confirme') || v.includes('confirm')) return 'confirmed'
@@ -37,6 +44,7 @@ export async function POST(request: NextRequest) {
     product_variant, variant_price,
     address1, address2,
     etat, youcan_order_id,
+    product_name,
   } = body
 
   const cleanPhone = String(phone || '').trim().replace(/\s/g, '')
@@ -95,7 +103,8 @@ export async function POST(request: NextRequest) {
     address1: String(address1 || '').trim() || null,
     address2: String(address2 || '').trim() || null,
     youcan_order_id: String(youcan_order_id || '').trim() || null,
-    ad_platform: 'other',
+    campaign_name: String(product_name || '').trim() || null,
+    ad_platform: detectPlatform(String(product_name || '')),
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
