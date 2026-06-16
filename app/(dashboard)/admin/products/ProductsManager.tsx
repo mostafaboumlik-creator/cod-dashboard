@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,6 +46,13 @@ const EMPTY = {
 
 export function ProductsManager({ initialProducts }: Props) {
   const [products, setProducts] = useState<Product[]>(initialProducts)
+  const router = useRouter()
+
+  // Sync avec les données fraîches du serveur après router.refresh()
+  useEffect(() => {
+    setProducts(initialProducts)
+  }, [initialProducts])
+
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Product | null>(null)
   const [form, setForm] = useState(EMPTY)
@@ -143,18 +151,6 @@ export function ProductsManager({ initialProducts }: Props) {
         setSaving(false)
         return
       }
-      setSaveDebug(`data:${!!json.data} | variants:${JSON.stringify(json.debug?.variantsSent ?? payload.variants)}`)
-      const saved = (json.data ?? null) as Product | null
-      if (editing) {
-        // Toujours mettre à jour l'état local avec le payload, qu'on ait ou non un retour serveur
-        setProducts(prev => prev.map(p =>
-          p.id === editing.id
-            ? { ...p, ...(saved ?? {}), ...payload } as Product
-            : p
-        ))
-      } else {
-        if (saved) setProducts(prev => [saved, ...prev])
-      }
     } catch (e: any) {
       setSaveError(`Erreur réseau: ${e?.message || String(e)}`)
       setSaving(false)
@@ -164,6 +160,8 @@ export function ProductsManager({ initialProducts }: Props) {
     setShowForm(false)
     setEditing(null)
     setForm(EMPTY)
+    setSaveDebug('')
+    router.refresh()  // Recharge les données depuis Supabase via le serveur
   }
 
   async function handleToggle(product: Product) {
@@ -493,9 +491,6 @@ export function ProductsManager({ initialProducts }: Props) {
 
             {saveError && (
               <div className="mx-6 mb-2 px-3 py-2 rounded-lg bg-red-900/30 border border-red-700/40 text-red-400 text-xs">{saveError}</div>
-            )}
-            {saveDebug && (
-              <div className="mx-6 mb-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-400 text-xs font-mono break-all">{saveDebug}</div>
             )}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-700">
               <Button variant="secondary" onClick={() => setShowForm(false)}>Annuler</Button>
