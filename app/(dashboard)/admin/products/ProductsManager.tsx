@@ -49,6 +49,7 @@ export function ProductsManager({ initialProducts }: Props) {
   const [editing, setEditing] = useState<Product | null>(null)
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const supabase = createClient()
 
   // Google Sheet modal state
@@ -111,6 +112,7 @@ export function ProductsManager({ initialProducts }: Props) {
 
   async function handleSave() {
     setSaving(true)
+    setSaveError('')
     const payload = {
       name: form.name,
       category: form.category || null,
@@ -127,10 +129,24 @@ export function ProductsManager({ initialProducts }: Props) {
       variants: form.selling_type === 'pack' ? form.variants : [],
     }
     if (editing) {
-      const { data } = await supabase.from('products').update(payload).eq('id', editing.id).select().single()
-      if (data) setProducts(prev => prev.map(p => p.id === editing.id ? data as Product : p))
+      const { data, error } = await supabase.from('products').update(payload).eq('id', editing.id).select().single()
+      if (error) {
+        setSaveError(error.message)
+        setSaving(false)
+        return
+      }
+      // Fallback optimiste si RLS bloque le SELECT après UPDATE
+      setProducts(prev => prev.map(p => p.id === editing!.id
+        ? (data ? data as Product : { ...p, ...payload } as Product)
+        : p
+      ))
     } else {
-      const { data } = await supabase.from('products').insert(payload).select().single()
+      const { data, error } = await supabase.from('products').insert(payload).select().single()
+      if (error) {
+        setSaveError(error.message)
+        setSaving(false)
+        return
+      }
       if (data) setProducts(prev => [data as Product, ...prev])
     }
     setSaving(false)
@@ -464,6 +480,9 @@ export function ProductsManager({ initialProducts }: Props) {
               )}
             </div>
 
+            {saveError && (
+              <div className="mx-6 mb-2 px-3 py-2 rounded-lg bg-red-900/30 border border-red-700/40 text-red-400 text-xs">{saveError}</div>
+            )}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-700">
               <Button variant="secondary" onClick={() => setShowForm(false)}>Annuler</Button>
               <Button onClick={handleSave} disabled={saving || !form.name}>{saving ? 'Enregistrement...' : 'Enregistrer'}</Button>
