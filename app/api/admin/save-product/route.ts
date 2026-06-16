@@ -22,11 +22,13 @@ export async function POST(request: NextRequest) {
   })
 
   const { id, ...payload } = body
+  console.log('[save-product] id:', id, 'variants:', JSON.stringify(payload.variants))
 
   if (id) {
     const { data, error } = await supabase.from('products').update(payload).eq('id', id).select().single()
+    console.log('[save-product] update result - data:', !!data, 'error:', error?.message)
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-    return NextResponse.json({ data })
+    return NextResponse.json({ data, debug: { id, variantsSent: payload.variants } })
   } else {
     const { data, error } = await supabase.from('products').insert(payload).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })

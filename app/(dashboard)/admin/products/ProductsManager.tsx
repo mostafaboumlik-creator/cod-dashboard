@@ -50,6 +50,7 @@ export function ProductsManager({ initialProducts }: Props) {
   const [form, setForm] = useState(EMPTY)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [saveDebug, setSaveDebug] = useState('')
   const supabase = createClient()
 
   // Google Sheet modal state
@@ -113,6 +114,7 @@ export function ProductsManager({ initialProducts }: Props) {
   async function handleSave() {
     setSaving(true)
     setSaveError('')
+    setSaveDebug('')
     const payload = {
       name: form.name,
       category: form.category || null,
@@ -129,25 +131,32 @@ export function ProductsManager({ initialProducts }: Props) {
       variants: form.selling_type === 'pack' ? form.variants : [],
     }
     try {
+      const body = editing ? { id: editing.id, ...payload } : payload
       const res = await fetch('/api/admin/save-product', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editing ? { id: editing.id, ...payload } : payload),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (!res.ok) {
-        setSaveError(json.error || 'Erreur lors de l\'enregistrement')
+        setSaveError(`Erreur API (${res.status}): ${json.error || 'inconnue'}`)
         setSaving(false)
         return
       }
-      const saved = json.data as Product
+      setSaveDebug(`data:${!!json.data} | variants:${JSON.stringify(json.debug?.variantsSent ?? payload.variants)}`)
+      const saved = (json.data ?? null) as Product | null
       if (editing) {
-        setProducts(prev => prev.map(p => p.id === editing.id ? saved : p))
+        // Toujours mettre à jour l'état local avec le payload, qu'on ait ou non un retour serveur
+        setProducts(prev => prev.map(p =>
+          p.id === editing.id
+            ? { ...p, ...(saved ?? {}), ...payload } as Product
+            : p
+        ))
       } else {
-        setProducts(prev => [saved, ...prev])
+        if (saved) setProducts(prev => [saved, ...prev])
       }
-    } catch {
-      setSaveError('Erreur réseau')
+    } catch (e: any) {
+      setSaveError(`Erreur réseau: ${e?.message || String(e)}`)
       setSaving(false)
       return
     }
@@ -484,6 +493,9 @@ export function ProductsManager({ initialProducts }: Props) {
 
             {saveError && (
               <div className="mx-6 mb-2 px-3 py-2 rounded-lg bg-red-900/30 border border-red-700/40 text-red-400 text-xs">{saveError}</div>
+            )}
+            {saveDebug && (
+              <div className="mx-6 mb-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-slate-400 text-xs font-mono break-all">{saveDebug}</div>
             )}
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-700">
               <Button variant="secondary" onClick={() => setShowForm(false)}>Annuler</Button>
