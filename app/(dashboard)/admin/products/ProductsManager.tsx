@@ -128,26 +128,28 @@ export function ProductsManager({ initialProducts }: Props) {
       is_active: form.is_active,
       variants: form.selling_type === 'pack' ? form.variants : [],
     }
-    if (editing) {
-      const { data, error } = await supabase.from('products').update(payload).eq('id', editing.id).select().single()
-      if (error) {
-        setSaveError(error.message)
+    try {
+      const res = await fetch('/api/admin/save-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editing ? { id: editing.id, ...payload } : payload),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setSaveError(json.error || 'Erreur lors de l\'enregistrement')
         setSaving(false)
         return
       }
-      // Fallback optimiste si RLS bloque le SELECT après UPDATE
-      setProducts(prev => prev.map(p => p.id === editing!.id
-        ? (data ? data as Product : { ...p, ...payload } as Product)
-        : p
-      ))
-    } else {
-      const { data, error } = await supabase.from('products').insert(payload).select().single()
-      if (error) {
-        setSaveError(error.message)
-        setSaving(false)
-        return
+      const saved = json.data as Product
+      if (editing) {
+        setProducts(prev => prev.map(p => p.id === editing.id ? saved : p))
+      } else {
+        setProducts(prev => [saved, ...prev])
       }
-      if (data) setProducts(prev => [data as Product, ...prev])
+    } catch {
+      setSaveError('Erreur réseau')
+      setSaving(false)
+      return
     }
     setSaving(false)
     setShowForm(false)
