@@ -2,6 +2,16 @@ export type UserRole = 'admin' | 'media_buyer' | 'confirmation_agent'
 export type OrderStatus =
   | 'lead'
   | 'confirmed'
+  | 'picked_up'
+  | 'received_hub'
+  | 'address_issue'
+  | 'in_delivery'
+  | 'out_of_zone'
+  | 'postponed'
+  | 'refused'
+  | 'preparing_return'
+  | 'redirect_city'
+  | 'delivery_no_answer'
   | 'delivered'
   | 'returned'
   | 'cancelled'
@@ -11,8 +21,7 @@ export type OrderStatus =
   | 'unreachable'
   | 'out_of_stock'
   | 'duplicate'
-  | 'delivery_no_answer'
-export type AdPlatform = 'facebook' | 'tiktok' | 'other'
+export type AdPlatform = 'facebook' | 'tiktok' | 'youtube' | 'other'
 
 export interface Profile {
   id: string
@@ -28,11 +37,20 @@ export interface Product {
   id: string
   name: string
   category: string | null
+  selling_type: 'unite' | 'pack'
   selling_price: number
+  unit_cost: number
   product_cost: number
   packaging_cost: number
+  delivery_cost_casa: number
+  delivery_cost_hors_casa: number
+  call_center_cost: number
+  warehouse_cost: number
   is_active: boolean
   created_at: string
+  sheet_url?: string | null
+  sheet_sync_active?: boolean
+  variants?: { qty: number; selling_price: number }[] | null
 }
 
 export interface Order {
@@ -59,6 +77,8 @@ export interface Order {
   youcan_order_id: string | null
   second_contact: string | null
   day1_contact: string | null
+  tracking_code?: string | null
+  ameex_sent_at?: string | null
   created_at: string
   confirmed_at: string | null
   delivered_at: string | null
