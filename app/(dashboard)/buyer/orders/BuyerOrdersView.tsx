@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
@@ -8,10 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
-import { calcNetProfit, calcCommission } from '@/lib/calculations'
+import { calcNetProfit, calcBrutProfit, calcCommission } from '@/lib/calculations'
 import { formatCurrency } from '@/lib/utils'
 import type { Order, OrderStatus, AdPlatform } from '@/lib/types'
 import { format } from 'date-fns'
+import { BuyerDateFilter } from '../BuyerDateFilter'
 
 interface Product {
   id: string
@@ -26,6 +27,8 @@ interface Props {
   commissionRate: number
   userId: string
   products: Product[]
+  dateFrom: string
+  dateTo: string
 }
 
 const EMPTY_FORM = {
@@ -45,9 +48,13 @@ const EMPTY_FORM = {
   notes: '',
 }
 
-export function BuyerOrdersView({ orders: initialOrders, commissionRate, userId, products }: Props) {
+export function BuyerOrdersView({ orders: initialOrders, commissionRate, userId, products, dateFrom, dateTo }: Props) {
   const [orders, setOrders] = useState<Order[]>(initialOrders)
-  const [filterStatus, setFilterStatus] = useState('all')
+  const [filterStatus, setFilterStatus] = useState('delivered')
+
+  useEffect(() => {
+    setOrders(initialOrders)
+  }, [initialOrders])
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
@@ -101,17 +108,20 @@ export function BuyerOrdersView({ orders: initialOrders, commissionRate, userId,
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-white">Mes Commandes</h1>
           <p className="text-slate-400 text-sm">{filtered.length} commandes</p>
         </div>
-        <Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true) }}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nouveau lead
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <BuyerDateFilter activeFrom={dateFrom} activeTo={dateTo} />
+          <Button onClick={() => { setForm(EMPTY_FORM); setShowForm(true) }}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nouveau lead
+          </Button>
+        </div>
       </div>
 
       {showForm && (
@@ -244,47 +254,54 @@ export function BuyerOrdersView({ orders: initialOrders, commissionRate, userId,
 
       <Card>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto pb-1">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-700">
-                  <th className="text-left text-slate-400 font-medium px-4 py-3">Date</th>
-                  <th className="text-left text-slate-400 font-medium px-4 py-3">Client</th>
-                  <th className="text-left text-slate-400 font-medium px-4 py-3">Produit</th>
-                  <th className="text-left text-slate-400 font-medium px-4 py-3">Campagne</th>
-                  <th className="text-right text-slate-400 font-medium px-4 py-3">Prix</th>
-                  <th className="text-right text-slate-400 font-medium px-4 py-3">Pub</th>
-                  <th className="text-right text-slate-400 font-medium px-4 py-3">Profit net</th>
-                  <th className="text-right text-slate-400 font-medium px-4 py-3">Commission</th>
-                  <th className="text-left text-slate-400 font-medium px-4 py-3">Statut</th>
+                  <th className="text-left text-slate-400 font-medium px-4 py-3 whitespace-nowrap">Date</th>
+                  <th className="text-left text-slate-400 font-medium px-4 py-3 whitespace-nowrap">Client</th>
+                  <th className="text-left text-slate-400 font-medium px-4 py-3 whitespace-nowrap">Produit</th>
+                  <th className="text-right text-slate-400 font-medium px-4 py-3 whitespace-nowrap">Prix vente</th>
+                  <th className="text-right text-red-400/70 font-medium px-3 py-3 whitespace-nowrap">− Coût prod.</th>
+                  <th className="text-right text-red-400/70 font-medium px-3 py-3 whitespace-nowrap">− Packaging</th>
+                  <th className="text-right text-red-400/70 font-medium px-3 py-3 whitespace-nowrap">− Livraison</th>
+                  <th className="text-right text-red-400/70 font-medium px-3 py-3 whitespace-nowrap">− Call center et suivie</th>
+                  <th className="text-right text-red-400/70 font-medium px-3 py-3 whitespace-nowrap">− Fulfillement center</th>
+                  <th className="text-right text-green-400 font-medium px-4 py-3 whitespace-nowrap">= Profit brut</th>
+                  <th className="text-left text-slate-400 font-medium px-4 py-3 whitespace-nowrap">Statut</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map(o => {
-                  const np = calcNetProfit(o)
-                  const commission = o.status === 'delivered' ? calcCommission(np, commissionRate) : 0
+                  const isDelivered = o.status === 'delivered'
+                  const fulfillmentCost = isDelivered ? 10 : 0
+                  const bp = calcBrutProfit(o) - fulfillmentCost
                   return (
                     <tr key={o.id} className="border-b border-slate-800 hover:bg-slate-800/30">
-                      <td className="px-4 py-3 text-slate-400 whitespace-nowrap text-xs">
+                      <td className="px-4 py-2.5 text-slate-400 whitespace-nowrap text-xs">
                         {format(new Date(o.created_at), 'dd/MM/yy')}
                       </td>
-                      <td className="px-4 py-3 text-slate-300 text-xs">{o.customer_name || 'N/A'}</td>
-                      <td className="px-4 py-3 text-slate-300">{(o.products as any)?.name || 'N/A'}</td>
-                      <td className="px-4 py-3 text-slate-400 text-xs">{o.campaign_name || 'N/A'}</td>
-                      <td className="px-4 py-3 text-right text-white font-medium">{formatCurrency(o.selling_price)}</td>
-                      <td className="px-4 py-3 text-right text-slate-400">{formatCurrency(o.ad_spend)}</td>
-                      <td className={`px-4 py-3 text-right font-medium ${np >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {o.status === 'delivered' ? formatCurrency(np) : 'N/A'}
+                      <td className="px-4 py-2.5 text-slate-300 text-xs whitespace-nowrap">{o.customer_name || '—'}</td>
+                      <td className="px-4 py-2.5 text-slate-300 whitespace-nowrap">{(o.products as any)?.name || '—'}</td>
+                      <td className="px-4 py-2.5 text-right text-white font-semibold whitespace-nowrap">
+                        {formatCurrency(o.selling_price)}
                       </td>
-                      <td className={`px-4 py-3 text-right font-medium ${commission > 0 ? 'text-indigo-400' : 'text-slate-600'}`}>
-                        {commission > 0 ? formatCurrency(commission) : 'N/A'}
+                      <td className="px-3 py-2.5 text-right text-red-400/80 text-xs whitespace-nowrap">{formatCurrency(o.product_cost)}</td>
+                      <td className="px-3 py-2.5 text-right text-red-400/80 text-xs whitespace-nowrap">{formatCurrency(o.packaging_cost)}</td>
+                      <td className="px-3 py-2.5 text-right text-red-400/80 text-xs whitespace-nowrap">{formatCurrency(o.delivery_cost)}</td>
+                      <td className="px-3 py-2.5 text-right text-red-400/80 text-xs whitespace-nowrap">{formatCurrency(o.call_center_cost)}</td>
+                      <td className="px-3 py-2.5 text-right text-red-400/80 text-xs whitespace-nowrap">
+                        {isDelivered ? formatCurrency(10) : '—'}
                       </td>
-                      <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
+                      <td className={`px-4 py-2.5 text-right font-semibold whitespace-nowrap ${bp >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {formatCurrency(bp)}
+                      </td>
+                      <td className="px-4 py-2.5 whitespace-nowrap"><StatusBadge status={o.status} /></td>
                     </tr>
                   )
                 })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-500">Aucune commande trouvee</td></tr>
+                  <tr><td colSpan={13} className="px-4 py-12 text-center text-slate-500">Aucune commande trouvee</td></tr>
                 )}
               </tbody>
             </table>
