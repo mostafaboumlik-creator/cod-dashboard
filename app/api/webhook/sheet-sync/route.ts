@@ -120,6 +120,14 @@ export async function POST(request: NextRequest) {
   }
 
   if (!resolvedProductId || !product) {
+    // Logger l'erreur pour pouvoir récupérer le lead plus tard
+    await supabase.from('sync_errors').insert({
+      youcan_order_id: String(youcan_order_id || '').trim() || null,
+      phone: cleanPhone,
+      product_name: String(product_name || ''),
+      payload: body,
+      error_reason: 'produit_introuvable',
+    }).then(() => {})
     return NextResponse.json({ error: 'Produit introuvable', product_name }, { status: 404 })
   }
 
