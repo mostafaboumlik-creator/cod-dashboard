@@ -108,7 +108,9 @@ export async function POST(request: NextRequest) {
   if (!match) return NextResponse.json({ error: 'URL Google Sheet invalide' }, { status: 400 })
 
   const sheetId = match[1]
-  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`
+  const gidMatch = sheet_url.match(/[?&#]gid=(\d+)/)
+  const gid = gidMatch ? gidMatch[1] : null
+  const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv${gid ? `&gid=${gid}` : ''}`
 
   let csvText: string
   try {

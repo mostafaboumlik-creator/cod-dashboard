@@ -21,7 +21,6 @@ export async function POST(request: NextRequest) {
     .from('profiles')
     .select('id')
     .eq('api_key', apiKey)
-    .eq('role', 'media_buyer')
     .single()
 
   if (!buyer) {
@@ -62,9 +61,26 @@ export async function POST(request: NextRequest) {
 
   const { data: product } = await supabase
     .from('products')
-    .select('selling_price, product_cost, packaging_cost')
+    .select('selling_price, product_cost, packaging_cost, delivery_cost_casa, call_center_cost')
     .eq('id', resolvedProductId)
     .single()
+
+  // Skip duplicate phone for same product — allow re-entry if previous order was closed
+  const CLOSED_STATUSES = ['cancelled', 'postponed', 'wrong_number', 'duplicate', 'returned']
+  const cleanPhone = String(customer_phone || '').trim()
+  if (cleanPhone) {
+    const { data: existing } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('customer_phone', cleanPhone)
+      .eq('product_id', resolvedProductId)
+      .not('status', 'in', `(${CLOSED_STATUSES.map(s => `"${s}"`).join(',')})`)
+      .limit(1)
+      .single()
+    if (existing) {
+      return NextResponse.json({ action: 'skipped', reason: 'doublon', phone: cleanPhone })
+    }
+  }
 
   const { data: order, error } = await supabase
     .from('orders')

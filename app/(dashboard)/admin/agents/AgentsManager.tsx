@@ -24,6 +24,8 @@ export function AgentsManager({ initialAgents, mediaBuyers, initialAssignments, 
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({ full_name: '', email: '', password: '', commission_rate: 10 })
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const [assignModal, setAssignModal] = useState<string | null>(null)
   const [pendingBuyers, setPendingBuyers] = useState<string[]>([])
@@ -38,7 +40,13 @@ export function AgentsManager({ initialAgents, mediaBuyers, initialAssignments, 
 
   function getAgentStats(agentId: string) {
     const agentBuyers = getAgentBuyers(agentId)
-    const agentOrders = orders.filter(o => agentBuyers.includes(o.media_buyer_id))
+    const agentOrders = orders.filter(o => {
+      if (!agentBuyers.includes(o.media_buyer_id)) return false
+      const d = o.created_at?.slice(0, 10)
+      if (dateFrom && d < dateFrom) return false
+      if (dateTo && d > dateTo) return false
+      return true
+    })
     const total = agentOrders.length
     const processed = agentOrders.filter(o => STATUS_PROCESSED.includes(o.status)).length
     const confirmed = agentOrders.filter(o => ['confirmed', 'delivered', 'returned'].includes(o.status)).length
@@ -104,17 +112,40 @@ export function AgentsManager({ initialAgents, mediaBuyers, initialAssignments, 
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-white">Agents de Confirmation</h1>
           <p className="text-slate-400 text-sm">{agents.length} agents</p>
         </div>
-        <Button onClick={() => setShowForm(true)}>
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Nouvel agent
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {[{ label: "Auj.", days: 0 }, { label: 'Hier', days: -1 }, { label: '7j', days: 7 }, { label: '30j', days: 30 }].map(p => {
+            const d = new Date()
+            const yesterday = new Date(d.getTime() - 86400000).toISOString().slice(0,10)
+            const from = p.days === 0 ? d.toISOString().slice(0,10) : p.days === -1 ? yesterday : new Date(d.getTime() - p.days * 86400000).toISOString().slice(0,10)
+            const to = p.days === -1 ? yesterday : d.toISOString().slice(0,10)
+            const active = dateFrom === from && dateTo === to
+            return (
+              <button key={p.label} onClick={() => { setDateFrom(from); setDateTo(to) }}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${active ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'}`}>
+                {p.label}
+              </button>
+            )
+          })}
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500" />
+          <span className="text-slate-500 text-sm">→</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500" />
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(''); setDateTo('') }} className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-700">✕</button>
+          )}
+          <Button onClick={() => setShowForm(true)}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Nouvel agent
+          </Button>
+        </div>
       </div>
 
       {/* Create form modal */}

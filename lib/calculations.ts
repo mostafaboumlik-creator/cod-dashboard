@@ -14,6 +14,11 @@ export function calcGrossProfit(order: Order): number {
   return order.selling_price - order.product_cost - order.packaging_cost
 }
 
+// Profit brut = CA - tous les coûts opérationnels SAUF la pub
+export function calcBrutProfit(order: Order): number {
+  return order.selling_price - order.product_cost - order.packaging_cost - order.delivery_cost - order.call_center_cost
+}
+
 export function calcNetProfit(order: Order): number {
   return order.selling_price - calcTotalCosts(order)
 }

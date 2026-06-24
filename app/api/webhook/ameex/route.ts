@@ -1,17 +1,63 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
-// Ameex → our status mapping
+// Ameex → our status mapping (handles both French and English)
 function mapAmeexStatus(statut: string, statutS?: string): string | null {
-  if (statut === 'DELIVERED') return 'delivered'
-  if (statut === 'RETURNED') return 'returned'
-  if (statut === 'CANCELLED') return 'cancelled'
-  if (statut === 'DISTRIBUTION') return 'confirmed'
-  if (statut === 'IN_PROGRESS') {
-    if (statutS === 'NO_ANSWER_TEAM' || statutS === 'NO_ANSWER') return 'delivery_no_answer'
-    if (statutS === 'POSTPONED' || statutS === 'SCHEDULED') return 'call_later'
-    return null // other IN_PROGRESS sub-statuses — ignore
+  // Normalize: uppercase + remove accents
+  const normalize = (v?: string) => (v || '').toUpperCase()
+    .replace(/É/g,'E').replace(/È/g,'E').replace(/Ê/g,'E')
+    .replace(/À/g,'A').replace(/Â/g,'A')
+    .replace(/Û/g,'U').replace(/Ù/g,'U')
+    .trim()
+
+  const s  = normalize(statut)
+  const ss = normalize(statutS)
+
+  console.log('AMEEX_WEBHOOK STATUT:', s, 'STATUT_S:', ss)
+
+  // Ramassé / Picked up
+  if (['RAMASSE', 'PICKED_UP', 'COLLECTED', 'PRIS_EN_CHARGE'].includes(s))
+    return 'picked_up'
+
+  // Reçu à l'agence / hub
+  if (['RECU', 'RECEIVED', 'IN_WAREHOUSE', 'WAREHOUSE', 'PROCESSING', 'EN_AGENCE', 'RECU_AGENCE'].includes(s))
+    return 'received_hub'
+
+  // Attente adresse
+  if (['ATTENTE_ADRESSE', 'ATTENTE ADRESSE', 'WAITING_ADDRESS', 'ADDRESS_ISSUE', 'INCOMPLETE_ADDRESS'].includes(s))
+    return 'address_issue'
+
+  // Expédié / En livraison / Out for delivery
+  if (['EN_LIVRAISON', 'EN LIVRAISON', 'OUT_FOR_DELIVERY', 'IN_DELIVERY', 'EXPEDIE', 'EXPEDIE_HUB', 'DISTRIBUTION', 'DISPATCHED', 'SHIPPED', 'EN_COURS_LIVRAISON'].includes(s))
+    return 'in_delivery'
+
+  // Livré / Delivered
+  if (['LIVRE', 'DELIVERED', 'LIVREE'].includes(s)) return 'delivered'
+
+  // Retourné / Returned
+  if (['RETOURNE', 'RETURNED', 'RETOUR'].includes(s)) return 'returned'
+
+  // Annulé / Cancelled
+  if (['ANNULE', 'CANCELLED', 'REFUSED', 'REFUSE'].includes(s)) return 'cancelled'
+
+  // En cours avec sous-statuts
+  if (['IN_PROGRESS', 'EN_COURS', 'EN COURS'].includes(s)) {
+    if (['NO_ANSWER_TEAM', 'NO_ANSWER', 'UNREACHABLE', 'PAS_REPONSE', 'PAS DE REPONSE', 'RELANCER', 'RELANCE', 'RELANCER_SUIVI'].includes(ss)) return 'delivery_no_answer'
+    if (['POSTPONED', 'SCHEDULED', 'RESCHEDULED', 'REPORTE', 'REPORTER', 'PROGRAMME', 'REPORTE_SUIVI', 'RELANCER_NOUVEAU_CLIENT', 'RENVOI_VILLE', 'NOUVELLE_VILLE'].includes(ss)) return 'postponed'
+    if (['HORS_ZONE', 'HORS ZONE', 'OUT_OF_ZONE'].includes(ss)) return 'out_of_zone'
+    if (['REFUSE', 'REFUSED', 'REFUS'].includes(ss)) return 'refused'
+    if (['PREPARATION_RETOUR', 'PREPARATION RETOUR', 'PREP_RETOUR', 'RETOUR_EXPEDITEUR'].includes(ss)) return 'preparing_return'
+    if (['LIVRE', 'DELIVERED'].includes(ss)) return 'delivered'
+    if (['RETOURNE', 'RETURNED'].includes(ss)) return 'returned'
+    return 'in_delivery'
   }
+
+  // Statuts directs additionnels
+  if (['HORS_ZONE', 'HORS ZONE'].includes(s)) return 'out_of_zone'
+  if (['REFUSE', 'REFUSED'].includes(s)) return 'refused'
+  if (['PREPARATION_RETOUR', 'PREP_RETOUR'].includes(s)) return 'preparing_return'
+
+  console.log('AMEEX_STATUS_UNMAPPED:', s, ss)
   return null
 }
 
@@ -61,9 +107,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Commande introuvable pour ce code: ' + code }, { status: 404 })
   }
 
+  const updateData: any = { status: newStatus }
+  if (newStatus === 'delivered') updateData.delivered_at = new Date().toISOString()
+  if (newStatus === 'returned')  updateData.delivered_at = new Date().toISOString()
+
   const { error: updateError } = await supabase
     .from('orders')
-    .update({ status: newStatus })
+    .update(updateData)
     .eq('id', order.id)
 
   if (updateError) {

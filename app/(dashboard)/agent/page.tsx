@@ -43,12 +43,19 @@ export default async function AgentPage() {
     .select('id, full_name')
     .in('id', buyerIds.length > 0 ? buyerIds : ['none'])
 
+  const { data: products } = await serviceClient
+    .from('products')
+    .select('id, name')
+    .eq('is_active', true)
+    .order('name')
+
   return (
     <AgentDashboard
       agentId={user.id}
       agentProfile={profile}
       initialOrders={orders}
       assignedBuyers={buyers || []}
+      allProducts={products || []}
     />
   )
 }
