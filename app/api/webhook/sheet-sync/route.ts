@@ -41,6 +41,17 @@ function stripPlatformTag(name: string): string {
     .replace(/\s+/g, '')
 }
 
+// Levenshtein distance — fuzzy fallback pour typos (henger/hanger, etc.)
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)])
+  for (let j = 0; j <= n; j++) dp[0][j] = j
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1])
+  return dp[m][n]
+}
+
 function isCasablanca(city: string): boolean {
   const c = city.toLowerCase().trim()
   return c.includes('casa') || c.includes('الدار البيضاء') || c.includes('دار البيضاء') || c === 'bida' || c === 'bda'
@@ -65,7 +76,7 @@ export async function POST(request: NextRequest) {
     product_variant, variant_price,
     address1, address2,
     etat, youcan_order_id,
-    product_name,
+    product_name, youcan_created_at,
   } = body
 
   const cleanPhone = String(phone || '').trim().replace(/\s/g, '')
@@ -81,7 +92,7 @@ export async function POST(request: NextRequest) {
   const { data: buyerProfile } = await supabase
     .from('profiles')
     .select('id')
-    .eq('api_key', api_key)
+    .eq('api_key', String(api_key).trim())
     .single()
 
   const buyer_id = buyerProfile?.id ?? null
@@ -93,7 +104,7 @@ export async function POST(request: NextRequest) {
   if (resolvedProductId) {
     const { data } = await supabase
       .from('products')
-      .select('*')
+      .select('id,name,selling_price,product_cost,packaging_cost,unit_cost,selling_type,delivery_cost_casa,call_center_cost,sheet_sync_active')
       .eq('id', resolvedProductId)
       .single()
     product = data
@@ -103,18 +114,52 @@ export async function POST(request: NextRequest) {
   if (!product && product_name) {
     const { data: allProducts } = await supabase
       .from('products')
-      .select('*')
+      .select('id,name,selling_price,product_cost,packaging_cost,unit_cost,selling_type,delivery_cost_casa,call_center_cost,sheet_sync_active')
       .eq('is_active', true)
 
     if (allProducts) {
       const sheetName = stripPlatformTag(String(product_name))
-      const matched = allProducts.find(p => {
+      // Pass 1: exact substring match
+      let matched = allProducts.find(p => {
         const dbName = stripPlatformTag(p.name)
         return sheetName.includes(dbName) || dbName.includes(sheetName)
       })
+      // Pass 2: fuzzy Levenshtein ≤ 2 — handles typos like "henger"/"hanger"
+      if (!matched && sheetName.length >= 4) {
+        matched = allProducts.find(p => {
+          const dbName = stripPlatformTag(p.name)
+          if (Math.abs(sheetName.length - dbName.length) > 3) return false
+          return levenshtein(sheetName, dbName) <= 2
+        })
+      }
       if (matched) {
         product = matched
         resolvedProductId = matched.id
+      }
+    }
+  }
+
+  // Pass 3: historical campaign_name lookup — handles Arabic sheet names that were previously
+  // synced via hardcoded PRODUCT_ID. Reuses the product_id from past matching orders.
+  if (!product && product_name) {
+    const rawName = String(product_name).trim()
+    const { data: pastOrders } = await supabase
+      .from('orders')
+      .select('product_id')
+      .eq('campaign_name', rawName)
+      .not('product_id', 'is', null)
+      .limit(1)
+    const pastProductId = pastOrders?.[0]?.product_id
+    if (pastProductId) {
+      const { data: pastProd } = await supabase
+        .from('products')
+        .select('id,name,selling_price,product_cost,packaging_cost,unit_cost,selling_type,delivery_cost_casa,call_center_cost,sheet_sync_active')
+        .eq('id', pastProductId)
+        .eq('is_active', true)
+        .limit(1)
+      if (pastProd?.[0]) {
+        product = pastProd[0]
+        resolvedProductId = pastProd[0].id
       }
     }
   }
@@ -162,6 +207,53 @@ export async function POST(request: NextRequest) {
     productCost = product.unit_cost * qty
   }
 
+  // Détermine la vraie date de création de la commande.
+  // Priorité 1 : date envoyée par Apps Script (youcan_created_at)
+  // Priorité 2 : inférence automatique — si l'ID Youcan est bien plus ancien que les commandes déjà en DB,
+  //              c'est une commande ancienne re-synchée (ex: resetBack100). On lui donne la date
+  //              du jour précédant la commande la plus proche avec un ID supérieur.
+  let orderCreatedAt: string | undefined
+
+  if (youcan_created_at) {
+    const d = new Date(String(youcan_created_at))
+    if (!isNaN(d.getTime())) orderCreatedAt = d.toISOString()
+  } else if (cleanOrderId) {
+    const thisNum = parseInt(cleanOrderId, 10)
+    if (!isNaN(thisNum)) {
+      const { data: recentRows } = await supabase
+        .from('orders')
+        .select('youcan_order_id, created_at')
+        .not('youcan_order_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (recentRows && recentRows.length > 0) {
+        // Filtre uniquement les IDs au format Youcan (courts, < 100000) pour éviter que
+        // les IDs Storeep (18 chiffres) faussent le calcul du maxNum
+        const parsed = recentRows
+          .map(o => ({ num: parseInt(o.youcan_order_id!, 10), created_at: o.created_at as string }))
+          .filter(o => !isNaN(o.num) && o.num > 0 && o.num < 100_000)
+
+        if (parsed.length > 0) {
+          const maxNum = Math.max(...parsed.map(o => o.num))
+
+          // Si l'ID est 10+ en dessous du max → commande ancienne re-synchée via resetBack100
+          if (maxNum - thisNum >= 10) {
+            const closestNewer = parsed
+              .filter(o => o.num > thisNum)
+              .sort((a, b) => a.num - b.num)[0]
+
+            if (closestNewer) {
+              const d = new Date(closestNewer.created_at)
+              d.setDate(d.getDate() - 1)
+              orderCreatedAt = d.toISOString()
+            }
+          }
+        }
+      }
+    }
+  }
+
   const { error } = await supabase.from('orders').insert({
     media_buyer_id: buyer_id || null,
     product_id: resolvedProductId,
@@ -180,6 +272,7 @@ export async function POST(request: NextRequest) {
     youcan_order_id: String(youcan_order_id || '').trim() || null,
     campaign_name: String(product_name || '').trim() || null,
     ad_platform: detectPlatform(String(product_name || '')),
+    ...(orderCreatedAt ? { created_at: orderCreatedAt } : {}),
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
