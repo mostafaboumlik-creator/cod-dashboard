@@ -34,19 +34,28 @@ function LoginForm() {
       return
     }
 
-    const roleRes = await fetch('/api/auth/role', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token: authData.session?.access_token }),
-    })
-    const roleData = await roleRes.json()
-    if (!roleRes.ok) {
-      setError(`Erreur profil: ${roleData.error}`)
+    // Essai 1 : rôle dans les métadonnées du JWT (aucune requête DB)
+    let role: string | null = (authData.user.user_metadata?.role as string) || null
+
+    // Essai 2 : API route avec service role key (bypass RLS)
+    if (!role) {
+      try {
+        const roleRes = await fetch('/api/auth/role', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_token: authData.session?.access_token }),
+        })
+        const roleData = await roleRes.json()
+        if (roleRes.ok && roleData.role) role = roleData.role
+      } catch { /* ignore */ }
+    }
+
+    if (!role) {
+      setError('Rôle introuvable — contactez l\'administrateur')
       setLoading(false)
       return
     }
 
-    const role = roleData.role
     if (role === 'admin') window.location.href = '/admin'
     else if (role === 'confirmation_agent') window.location.href = '/agent'
     else window.location.href = '/buyer'
