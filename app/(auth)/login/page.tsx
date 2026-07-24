@@ -34,20 +34,21 @@ function LoginForm() {
       return
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', authData.user.id)
-      .single()
-
-    if (profileError) {
-      setError(`Erreur profil: ${profileError.message}`)
+    const roleRes = await fetch('/api/auth/role', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_token: authData.session?.access_token }),
+    })
+    const roleData = await roleRes.json()
+    if (!roleRes.ok) {
+      setError(`Erreur profil: ${roleData.error}`)
       setLoading(false)
       return
     }
 
-    if (profile?.role === 'admin') window.location.href = '/admin'
-    else if (profile?.role === 'confirmation_agent') window.location.href = '/agent'
+    const role = roleData.role
+    if (role === 'admin') window.location.href = '/admin'
+    else if (role === 'confirmation_agent') window.location.href = '/agent'
     else window.location.href = '/buyer'
   }
 
