@@ -32,10 +32,13 @@ function extractPackQty(variant: string): number {
 }
 
 // Retire fb/tt/yt/tk en début ou fin pour comparer les noms de produits cross-plateforme
+// Normalise aussi les apostrophes typographiques et symboles ™/®
 function stripPlatformTag(name: string): string {
   return name
     .toLowerCase()
     .trim()
+    .replace(/[‘’ʼ']/g, '')  // apostrophes → retirées
+    .replace(/[™®©]/g, '')                        // symboles marque → retirés
     .replace(/^(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)\s*/i, '')
     .replace(/\s*(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)$/i, '')
     .replace(/\s+/g, '')
