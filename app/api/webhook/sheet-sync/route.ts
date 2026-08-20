@@ -34,14 +34,18 @@ function extractPackQty(variant: string): number {
 // Retire fb/tt/yt/tk en début ou fin pour comparer les noms de produits cross-plateforme
 // Normalise aussi les apostrophes typographiques et symboles ™/®
 function stripPlatformTag(name: string): string {
-  return name
+  // Filtre par code Unicode explicite pour éviter tout problème d’encodage
+  const SKIP = new Set([
+    0x0027, 0x2018, 0x2019, 0x02BC, 0x0060, 0x00B4, // apostrophes
+    0x2122, 0x00AE, 0x00A9,                            // ™ ® ©
+  ])
+  const cleaned = name.split(‘’).filter(c => !SKIP.has(c.codePointAt(0)!)).join(‘’)
+  return cleaned
     .toLowerCase()
     .trim()
-    .replace(/[‘’ʼ']/g, '')  // apostrophes → retirées
-    .replace(/[™®©]/g, '')                        // symboles marque → retirés
-    .replace(/^(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)\s*/i, '')
-    .replace(/\s*(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)$/i, '')
-    .replace(/\s+/g, '')
+    .replace(/^(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)\s*/i, ‘’)
+    .replace(/\s*(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)$/i, ‘’)
+    .replace(/\s+/g, ‘’)
 }
 
 // Levenshtein distance — fuzzy fallback pour typos (henger/hanger, etc.)
