@@ -51,6 +51,8 @@ export interface Product {
   sheet_url?: string | null
   sheet_sync_active?: boolean
   variants?: { qty: number; selling_price: number }[] | null
+  pack_size?: number | null
+  minimum_quantity?: number | null
 }
 
 export interface Order {
@@ -77,6 +79,8 @@ export interface Order {
   youcan_order_id: string | null
   second_contact: string | null
   day1_contact: string | null
+  quantity?: number | null
+  payment_mode?: string | null
   tracking_code?: string | null
   ameex_sent_at?: string | null
   created_at: string

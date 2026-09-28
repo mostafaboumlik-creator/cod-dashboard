@@ -34,18 +34,18 @@ function extractPackQty(variant: string): number {
 // Retire fb/tt/yt/tk en début ou fin pour comparer les noms de produits cross-plateforme
 // Normalise aussi les apostrophes typographiques et symboles ™/®
 function stripPlatformTag(name: string): string {
-  // Filtre par code Unicode explicite pour éviter tout problème d’encodage
+  // Filtre par code Unicode explicite pour éviter tout problème d'encodage
   const SKIP = new Set([
     0x0027, 0x2018, 0x2019, 0x02BC, 0x0060, 0x00B4, // apostrophes
     0x2122, 0x00AE, 0x00A9,                            // ™ ® ©
   ])
-  const cleaned = name.split(‘’).filter(c => !SKIP.has(c.codePointAt(0)!)).join(‘’)
+  const cleaned = name.split('').filter(c => !SKIP.has(c.codePointAt(0)!)).join('')
   return cleaned
     .toLowerCase()
     .trim()
-    .replace(/^(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)\s*/i, ‘’)
-    .replace(/\s*(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)$/i, ‘’)
-    .replace(/\s+/g, ‘’)
+    .replace(/^(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)\s*/i, '')
+    .replace(/\s*(fb|tt|tk|yt|tkt|tiktok|facebook|youtube)$/i, '')
+    .replace(/\s+/g, '')
 }
 
 // Levenshtein distance — fuzzy fallback pour typos (henger/hanger, etc.)
@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
     address1, address2,
     etat, youcan_order_id,
     product_name, youcan_created_at,
+    quantity, total_price, payment_mode,
   } = body
 
   const cleanPhone = String(phone || '').trim().replace(/\s/g, '')
@@ -204,13 +205,18 @@ export async function POST(request: NextRequest) {
   }
 
   const status = etat ? mapEtat(String(etat)) : 'lead'
-  const sellingPrice = Number(variant_price) || product?.selling_price || 0
+  // Prefer total_price (Jamla wholesale) over variant_price (retail), fallback to product default
+  const sellingPrice = Number(total_price || variant_price) || product?.selling_price || 0
 
-  // Calculate product cost: if pack product with unit_cost set, multiply by qty from variant
+  // Calculate product cost: if pack product with unit_cost set, use explicit quantity (Jamla)
+  // or fall back to extractPackQty from variant string (legacy retail)
   const variantStr = String(product_variant || '').trim()
   let productCost = product?.product_cost ?? 0
-  if (product?.selling_type === 'pack' && product?.unit_cost > 0 && variantStr) {
-    const qty = extractPackQty(variantStr)
+  if (product?.selling_type === 'pack' && product?.unit_cost > 0) {
+    const parsedQty = Number(quantity)
+    const qty = (parsedQty > 0 && Number.isInteger(parsedQty))
+      ? parsedQty
+      : (variantStr ? extractPackQty(variantStr) : 1)
     productCost = product.unit_cost * qty
   }
 
@@ -279,6 +285,8 @@ export async function POST(request: NextRequest) {
     youcan_order_id: String(youcan_order_id || '').trim() || null,
     campaign_name: String(product_name || '').trim() || null,
     ad_platform: detectPlatform(String(product_name || '')),
+    quantity: (Number(quantity) > 0 && Number.isInteger(Number(quantity))) ? Number(quantity) : null,
+    payment_mode: payment_mode ? String(payment_mode).trim() : null,
     ...(orderCreatedAt ? { created_at: orderCreatedAt } : {}),
   })
 
