@@ -33,7 +33,6 @@ export default async function AgentPage() {
       .from('orders')
       .select('*, products(id, name, pack_size)')
       .in('media_buyer_id', buyerIds)
-      .neq('product_id', 'c0a1618b-75b9-4b0b-8d22-058757a79bba')
       .order('created_at', { ascending: false })
       .limit(2000)
     orders = data || []
