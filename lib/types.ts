@@ -81,6 +81,7 @@ export interface Order {
   day1_contact: string | null
   quantity?: number | null
   payment_mode?: string | null
+  customer_type?: 'jamla' | 'pro' | 'perso' | null
   tracking_code?: string | null
   ameex_sent_at?: string | null
   created_at: string

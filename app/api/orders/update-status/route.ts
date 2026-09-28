@@ -26,7 +26,9 @@ export async function POST(request: NextRequest) {
   if (fields.customer_phone !== undefined) update.customer_phone = fields.customer_phone
   if (fields.customer_name !== undefined) update.customer_name = fields.customer_name
   if (fields.product_variant !== undefined) update.product_variant = fields.product_variant || null
-  if (fields.selling_price !== undefined) update.selling_price = fields.selling_price
+  if (fields.selling_price    !== undefined) update.selling_price    = fields.selling_price
+  if (fields.customer_type   !== undefined) update.customer_type   = fields.customer_type   || null
+  if (fields.payment_mode    !== undefined) update.payment_mode    = fields.payment_mode    || null
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 })

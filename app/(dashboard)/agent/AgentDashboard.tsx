@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -121,7 +121,8 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
   const supabase = createClient()
   const today = new Date().toISOString().slice(0, 10)
 
-  const ORDER_SELECT = 'id, media_buyer_id, product_id, status, selling_price, product_cost, packaging_cost, delivery_cost, call_center_cost, ad_spend, campaign_name, ad_platform, customer_name, customer_phone, city, notes, product_variant, address1, address2, youcan_order_id, second_contact, day1_contact, confirmed_by, tracking_code, ameex_sent_at, created_at, confirmed_at, delivered_at, products(id, name)'
+  const JAMLA_PRODUCT_ID = 'c0a1618b-75b9-4b0b-8d22-058757a79bba'
+  const ORDER_SELECT = 'id, media_buyer_id, product_id, status, selling_price, product_cost, packaging_cost, delivery_cost, call_center_cost, ad_spend, campaign_name, ad_platform, customer_name, customer_phone, city, notes, product_variant, address1, address2, youcan_order_id, second_contact, day1_contact, confirmed_by, tracking_code, ameex_sent_at, created_at, confirmed_at, delivered_at, quantity, payment_mode, customer_type, products(id, name, pack_size)'
 
   useEffect(() => {
     const assignedBuyerIds = new Set(assignedBuyers.map(b => b.id))
@@ -327,6 +328,11 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
 
   function getPriceValue(order: any) {
     return editingPrice[order.id] !== undefined ? editingPrice[order.id] : String(order.selling_price || '')
+  }
+
+  async function handleJamlaField(orderId: string, field: 'customer_type' | 'payment_mode', value: string) {
+    await apiUpdate(orderId, { [field]: value || null })
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, [field]: value || null } : o))
   }
 
   function getAddressValue(order: any) {
@@ -581,7 +587,8 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
               </thead>
               <tbody>
                 {filtered.map(order => (
-                  <tr key={order.id} className="border-b border-slate-800 hover:bg-slate-800/30">
+                  <Fragment key={order.id}>
+                  <tr className="border-b border-slate-800 hover:bg-slate-800/30">
                     <td className="px-3 py-2 text-slate-500 text-xs whitespace-nowrap font-mono">
                       {order.youcan_order_id || '—'}
                     </td>
@@ -790,6 +797,83 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
                       )}
                     </td>
                   </tr>
+                  {order.product_id === JAMLA_PRODUCT_ID && (() => {
+                    const transport = (order.delivery_cost || 0) + 1
+                    const total     = (order.selling_price || 0) + (order.delivery_cost || 0)
+                    const packSize  = order.products?.pack_size
+                    const packs     = (order.quantity && packSize) ? Math.floor(order.quantity / packSize) : null
+                    const piece     = order.quantity ? (total / order.quantity).toFixed(2) : null
+                    return (
+                      <tr className="bg-indigo-950/20 border-b border-indigo-900/30">
+                        <td colSpan={14} className="px-4 pb-3 pt-1.5">
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            {/* PACK */}
+                            <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-md px-2.5 py-1.5 border border-slate-700/50">
+                              <span className="text-slate-500 uppercase tracking-wide text-[10px]">Pack</span>
+                              <span className="text-white font-bold">{packs ?? '—'}</span>
+                            </div>
+                            {/* COULEUR */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-500 uppercase tracking-wide text-[10px]">Couleur</span>
+                              <input
+                                type="text"
+                                value={getVariantValue(order)}
+                                onChange={e => setEditingVariant(prev => ({ ...prev, [order.id]: e.target.value }))}
+                                onBlur={() => handleVariantBlur(order.id)}
+                                data-lpignore="true"
+                                autoComplete="off"
+                                className="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-white w-20 focus:outline-none focus:border-indigo-500 text-xs"
+                              />
+                            </div>
+                            {/* TYPE CLIENT */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-500 uppercase tracking-wide text-[10px]">Type</span>
+                              <select
+                                value={order.customer_type || ''}
+                                onChange={e => handleJamlaField(order.id, 'customer_type', e.target.value)}
+                                className="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-white text-xs focus:outline-none focus:border-indigo-500"
+                              >
+                                <option value="">— Choisir —</option>
+                                <option value="jamla">JAMLA — Revendeur</option>
+                                <option value="pro">PRO — École / club / association</option>
+                                <option value="perso">PERSO — Utilisation personnelle</option>
+                              </select>
+                            </div>
+                            {/* PAIEMENT */}
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-slate-500 uppercase tracking-wide text-[10px]">Paiement</span>
+                              <select
+                                value={order.payment_mode || ''}
+                                onChange={e => handleJamlaField(order.id, 'payment_mode', e.target.value)}
+                                className="bg-slate-800 border border-slate-700 rounded px-2 py-0.5 text-white text-xs focus:outline-none focus:border-indigo-500"
+                              >
+                                <option value="">— Choisir —</option>
+                                <option value="COD">COD</option>
+                                <option value="Virement bancaire">Virement bancaire</option>
+                                <option value="Retrait / paiement magasin">Retrait / paiement magasin</option>
+                              </select>
+                            </div>
+                            {/* TRANSPORT */}
+                            <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-md px-2.5 py-1.5 border border-slate-700/50">
+                              <span className="text-slate-500 uppercase tracking-wide text-[10px]">Transport</span>
+                              <span className="text-yellow-400 font-semibold">{transport} DH</span>
+                            </div>
+                            {/* TOTAL */}
+                            <div className="flex items-center gap-1.5 bg-indigo-900/40 rounded-md px-2.5 py-1.5 border border-indigo-500/30">
+                              <span className="text-indigo-300 uppercase tracking-wide text-[10px]">Total</span>
+                              <span className="text-green-400 font-bold text-sm">{total} DH</span>
+                            </div>
+                            {/* PRIX/PIÈCE */}
+                            <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-md px-2.5 py-1.5 border border-slate-700/50">
+                              <span className="text-slate-500 uppercase tracking-wide text-[10px]">Pièce</span>
+                              <span className="text-slate-300 font-medium">{piece ?? '—'} DH</span>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })()}
+                  </Fragment>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
