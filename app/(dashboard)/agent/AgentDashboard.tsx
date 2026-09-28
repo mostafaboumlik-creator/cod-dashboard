@@ -911,7 +911,26 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
                   <span className="text-slate-400 w-20 shrink-0">Téléphone</span>
                   <input type="text" value={ameexModal.phone} onChange={e => setAmeexModal(m => m ? { ...m, phone: e.target.value } : m)} data-lpignore="true" autoComplete="off" className="flex-1 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono focus:outline-none focus:border-indigo-500" />
                 </div>
-                <div className="flex justify-between"><span className="text-slate-400">COD</span><span className="text-green-400 font-bold">{ameexModal.order.selling_price} MAD</span></div>
+                {(() => {
+                  const JAMLA_PRODUCT_ID = 'c0a1618b-75b9-4b0b-8d22-058757a79bba'
+                  const isJamla = ameexModal.order.product_id === JAMLA_PRODUCT_ID
+                  const cod = isJamla
+                    ? (ameexModal.order.selling_price || 0) + (ameexModal.order.delivery_cost || 0)
+                    : (ameexModal.order.selling_price || 0)
+                  return (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">COD</span>
+                        <span className="text-green-400 font-bold">{cod} MAD</span>
+                      </div>
+                      {isJamla && (
+                        <div className="text-xs text-slate-500 text-right">
+                          Commande : {ameexModal.order.selling_price} DH + Transport : {ameexModal.order.delivery_cost} DH
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
 
               {/* Adresse */}
