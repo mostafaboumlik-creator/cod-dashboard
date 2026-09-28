@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   const { data: order, error: findErr } = await supabase
     .from('orders')
-    .select('id, status, customer_name, customer_phone, address1, notes, selling_price, product_variant, products(name)')
+    .select('id, status, customer_name, customer_phone, address1, notes, selling_price, delivery_cost, product_id, product_variant, products(name)')
     .eq('id', orderId)
     .single()
 
@@ -42,7 +42,11 @@ export async function POST(request: NextRequest) {
   formData.append('phone',    phoneOverride || order.customer_phone || '')
   formData.append('city',     String(cityId))
   formData.append('address',  addressOverride || order.address1 || '')
-  formData.append('cod',      String(order.selling_price || 0))
+  const JAMLA_PRODUCT_ID = 'c0a1618b-75b9-4b0b-8d22-058757a79bba'
+  const cod = order.product_id === JAMLA_PRODUCT_ID
+    ? (order.selling_price || 0) + (order.delivery_cost || 0)
+    : (order.selling_price || 0)
+  formData.append('cod',      String(cod))
   formData.append('product',  (order.products as any)?.name || '')
   if (order.notes) formData.append('comment', order.notes)
   if (order.product_variant) formData.append('order_num', order.product_variant)
