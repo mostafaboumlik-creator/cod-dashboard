@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   const { data: order, error: findErr } = await supabase
     .from('orders')
-    .select('id, status, customer_name, customer_phone, address1, notes, selling_price, delivery_cost, product_id, product_variant, products(name)')
+    .select('id, status, customer_name, customer_phone, address1, notes, selling_price, delivery_cost, product_id, product_variant, quantity, products(name)')
     .eq('id', orderId)
     .single()
 
@@ -43,9 +43,16 @@ export async function POST(request: NextRequest) {
   formData.append('city',     String(cityId))
   formData.append('address',  addressOverride || order.address1 || '')
   const JAMLA_PRODUCT_ID = 'c0a1618b-75b9-4b0b-8d22-058757a79bba'
-  const cod = order.product_id === JAMLA_PRODUCT_ID
-    ? (order.selling_price || 0) + (order.delivery_cost || 0)
-    : (order.selling_price || 0)
+  const JAMLA_PRICE_PER_PIECE = 15
+  let cod = order.selling_price || 0
+  if (order.product_id === JAMLA_PRODUCT_ID) {
+    const qty = (order as any).quantity || 0
+    const merchandiseTotal = qty * JAMLA_PRICE_PER_PIECE
+    const isNewShipping = qty > 0 && order.selling_price === merchandiseTotal + 36
+    cod = isNewShipping
+      ? (order.selling_price || 0)
+      : (order.selling_price || 0) + (order.delivery_cost || 0)
+  }
   formData.append('cod',      String(cod))
   formData.append('product',  (order.products as any)?.name || '')
   if (order.notes) formData.append('comment', order.notes)

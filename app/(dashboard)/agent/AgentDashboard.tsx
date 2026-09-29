@@ -798,9 +798,19 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
                     </td>
                   </tr>
                   {order.product_id === JAMLA_PRODUCT_ID && (() => {
+                    const JAMLA_PRICE_PER_PIECE = 15
+                    const merchandiseTotal = (order.quantity || 0) * JAMLA_PRICE_PER_PIECE
+                    const isNewShipping = order.quantity != null && order.selling_price === merchandiseTotal + 36
                     const packSize  = order.products?.pack_size
                     const packs     = (order.quantity && packSize) ? Math.floor(order.quantity / packSize) : null
-                    const piece     = order.quantity ? ((order.selling_price || 0) / order.quantity).toFixed(2) : null
+                    const transport = (order.delivery_cost || 0) + 1
+                    const total     = (order.selling_price || 0) + (order.delivery_cost || 0)
+                    const piece     = order.quantity
+                      ? (isNewShipping
+                          ? ((order.selling_price || 0) / order.quantity)
+                          : (total / order.quantity)
+                        ).toFixed(2)
+                      : null
                     return (
                       <tr className="bg-indigo-950/20 border-b border-indigo-900/30">
                         <td colSpan={14} className="px-4 pb-3 pt-1.5">
@@ -851,6 +861,20 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
                                 <option value="Retrait / paiement magasin">Retrait / paiement magasin</option>
                               </select>
                             </div>
+                            {!isNewShipping && (
+                              <>
+                                {/* TRANSPORT */}
+                                <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-md px-2.5 py-1.5 border border-slate-700/50">
+                                  <span className="text-slate-500 uppercase tracking-wide text-[10px]">Transport</span>
+                                  <span className="text-yellow-400 font-semibold">{transport} DH</span>
+                                </div>
+                                {/* TOTAL */}
+                                <div className="flex items-center gap-1.5 bg-indigo-900/40 rounded-md px-2.5 py-1.5 border border-indigo-500/30">
+                                  <span className="text-indigo-300 uppercase tracking-wide text-[10px]">Total</span>
+                                  <span className="text-green-400 font-bold text-sm">{total} DH</span>
+                                </div>
+                              </>
+                            )}
                             {/* PRIX/PIÈCE */}
                             <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-md px-2.5 py-1.5 border border-slate-700/50">
                               <span className="text-slate-500 uppercase tracking-wide text-[10px]">Pièce</span>
@@ -901,8 +925,11 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
                 </div>
                 {(() => {
                   const JAMLA_PRODUCT_ID = 'c0a1618b-75b9-4b0b-8d22-058757a79bba'
+                  const JAMLA_PRICE_PER_PIECE = 15
                   const isJamla = ameexModal.order.product_id === JAMLA_PRODUCT_ID
-                  const cod = isJamla
+                  const mTotal = (ameexModal.order.quantity || 0) * JAMLA_PRICE_PER_PIECE
+                  const isNewShipping = isJamla && ameexModal.order.quantity != null && ameexModal.order.selling_price === mTotal + 36
+                  const cod = isJamla && !isNewShipping
                     ? (ameexModal.order.selling_price || 0) + (ameexModal.order.delivery_cost || 0)
                     : (ameexModal.order.selling_price || 0)
                   return (
@@ -911,7 +938,7 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
                         <span className="text-slate-400">COD</span>
                         <span className="text-green-400 font-bold">{cod} MAD</span>
                       </div>
-                      {isJamla && (
+                      {isJamla && !isNewShipping && (
                         <div className="text-xs text-slate-500 text-right">
                           Commande : {ameexModal.order.selling_price} DH + Transport : {ameexModal.order.delivery_cost} DH
                         </div>
