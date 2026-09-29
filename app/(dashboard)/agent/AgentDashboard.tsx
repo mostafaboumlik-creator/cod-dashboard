@@ -798,11 +798,9 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
                     </td>
                   </tr>
                   {order.product_id === JAMLA_PRODUCT_ID && (() => {
-                    const transport = (order.delivery_cost || 0) + 1
-                    const total     = (order.selling_price || 0) + (order.delivery_cost || 0)
                     const packSize  = order.products?.pack_size
                     const packs     = (order.quantity && packSize) ? Math.floor(order.quantity / packSize) : null
-                    const piece     = order.quantity ? (total / order.quantity).toFixed(2) : null
+                    const piece     = order.quantity ? ((order.selling_price || 0) / order.quantity).toFixed(2) : null
                     return (
                       <tr className="bg-indigo-950/20 border-b border-indigo-900/30">
                         <td colSpan={14} className="px-4 pb-3 pt-1.5">
@@ -852,16 +850,6 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
                                 <option value="Virement bancaire">Virement bancaire</option>
                                 <option value="Retrait / paiement magasin">Retrait / paiement magasin</option>
                               </select>
-                            </div>
-                            {/* TRANSPORT */}
-                            <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-md px-2.5 py-1.5 border border-slate-700/50">
-                              <span className="text-slate-500 uppercase tracking-wide text-[10px]">Transport</span>
-                              <span className="text-yellow-400 font-semibold">{transport} DH</span>
-                            </div>
-                            {/* TOTAL */}
-                            <div className="flex items-center gap-1.5 bg-indigo-900/40 rounded-md px-2.5 py-1.5 border border-indigo-500/30">
-                              <span className="text-indigo-300 uppercase tracking-wide text-[10px]">Total</span>
-                              <span className="text-green-400 font-bold text-sm">{total} DH</span>
                             </div>
                             {/* PRIX/PIÈCE */}
                             <div className="flex items-center gap-1.5 bg-slate-800/60 rounded-md px-2.5 py-1.5 border border-slate-700/50">
