@@ -113,26 +113,35 @@ export async function GET(request: NextRequest) {
     return rs.reduce((acc, r) => acc + (r.quantity || 0), 0)
   }
 
-  const confies = rows.length
-  const ramasses = rows.filter(r => RAMASSES_STATUSES.has(r.status)).length
+  const confies       = rows.length
+  const confiesPieces = pieces(rows)
+
+  const ramassesRows  = rows.filter(r => RAMASSES_STATUSES.has(r.status))
+  const ramasses      = ramassesRows.length
+  const ramassePieces = pieces(ramassesRows)
 
   const livresRows      = rows.filter(r => r.categorie === 'livre')
-  const echecs          = rows.filter(r => r.categorie === 'echec').length
+  const echecsRows      = rows.filter(r => r.categorie === 'echec')
   const enAttenteRows   = rows.filter(r => r.categorie === 'en_attente')
   const enSuspensRows   = rows.filter(r => r.categorie === 'en_suspens')
   const retourARRows    = rows.filter(r => r.categorie === 'retour_a_recevoir')
   const retourRecusRows = rows.filter(r => r.categorie === 'retour_recu')
   const aVerifierRows   = rows.filter(r => r.categorie === 'a_verifier')
 
-  const livres              = livresRows.length
-  const enAttenteRamassage  = enAttenteRows.length
-  const enSuspens           = enSuspensRows.length
-  const retourARecevoir     = retourARRows.length
-  const retourARecevoirPieces = pieces(retourARRows)
-  const retourRecus         = retourRecusRows.length
-  const retourRecusPieces   = pieces(retourRecusRows)
-  const aVerifier           = aVerifierRows.length
-  const aVerifierPieces     = pieces(aVerifierRows)
+  const livres                  = livresRows.length
+  const livresPieces            = pieces(livresRows)
+  const echecs                  = echecsRows.length
+  const echecsPieces            = pieces(echecsRows)
+  const enAttenteRamassage      = enAttenteRows.length
+  const enAttenteRamassagePieces = pieces(enAttenteRows)
+  const enSuspens               = enSuspensRows.length
+  const enSuspensPieces         = pieces(enSuspensRows)
+  const retourARecevoir         = retourARRows.length
+  const retourARecevoirPieces   = pieces(retourARRows)
+  const retourRecus             = retourRecusRows.length
+  const retourRecusPieces       = pieces(retourRecusRows)
+  const aVerifier               = aVerifierRows.length
+  const aVerifierPieces         = pieces(aVerifierRows)
 
   const sumExclusive = enAttenteRamassage + livres + echecs + retourARecevoir + retourRecus + enSuspens + aVerifier
   const reconciliationOk = sumExclusive === confies
@@ -146,15 +155,21 @@ export async function GET(request: NextRequest) {
 
   const kpis = {
     confies,
+    confiesPieces,
     ramasses,
+    ramassePieces,
     livres,
+    livresPieces,
     enAttenteRamassage,
+    enAttenteRamassagePieces,
     enSuspens,
+    enSuspensPieces,
     retourARecevoir,
     retourARecevoirPieces,
     retourRecus,
     retourRecusPieces,
     echecs,
+    echecsPieces,
     aVerifier,
     aVerifierPieces,
     tauxLivraison,

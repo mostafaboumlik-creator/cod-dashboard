@@ -20,15 +20,21 @@ interface JamlaOrder {
 
 interface ReportKpis {
   confies: number
+  confiesPieces: number
   ramasses: number
+  ramassePieces: number
   livres: number
+  livresPieces: number
   enAttenteRamassage: number
+  enAttenteRamassagePieces: number
   enSuspens: number
+  enSuspensPieces: number
   retourARecevoir: number
   retourARecevoirPieces: number
   retourRecus: number
   retourRecusPieces: number
   echecs: number
+  echecsPieces: number
   aVerifier: number
   aVerifierPieces: number
   tauxLivraison: number
@@ -211,9 +217,12 @@ export function JamlaReport() {
       {kpis && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <KpiCard label="COLIS CONFIÉS" value={kpis.confies} color="slate" />
-            <KpiCard label="RAMASSÉS" value={kpis.ramasses} color="blue" hint="flux" />
-            <KpiCard label="LIVRÉS" value={kpis.livres} color="emerald" />
+            <KpiCard label="COLIS CONFIÉS" value={kpis.confies} color="slate"
+              subValue={`${kpis.confiesPieces} pièces`} />
+            <KpiCard label="RAMASSÉS" value={kpis.ramasses} color="blue" hint="flux"
+              subValue={`${kpis.ramassePieces} pièces`} />
+            <KpiCard label="LIVRÉS" value={kpis.livres} color="emerald"
+              subValue={`${kpis.livresPieces} pièces`} />
             <KpiCard
               label="TAUX LIVRAISON"
               value={`${kpis.tauxLivraison}%`}
@@ -224,21 +233,24 @@ export function JamlaReport() {
 
           {/* KPI grid row 2: états */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            <KpiCard label="EN ATTENTE RAMASSAGE" value={kpis.enAttenteRamassage} color="indigo" />
-            <KpiCard label="EN SUSPENS" value={kpis.enSuspens} color="yellow" />
+            <KpiCard label="EN ATTENTE RAMASSAGE" value={kpis.enAttenteRamassage} color="indigo"
+              subValue={`${kpis.enAttenteRamassagePieces} pièces`} />
+            <KpiCard label="EN SUSPENS" value={kpis.enSuspens} color="yellow"
+              subValue={`${kpis.enSuspensPieces} pièces`} />
             <KpiCard
               label="RETOURS À RECEVOIR D'AMEEX"
               value={kpis.retourARecevoir}
-              subValue={kpis.retourARecevoirPieces > 0 ? `${kpis.retourARecevoirPieces} pièces` : undefined}
+              subValue={`${kpis.retourARecevoirPieces} pièces`}
               color="orange"
             />
             <KpiCard
               label="RETOURS REÇUS"
               value={kpis.retourRecus}
-              subValue={kpis.retourRecusPieces > 0 ? `${kpis.retourRecusPieces} pièces` : undefined}
+              subValue={`${kpis.retourRecusPieces} pièces`}
               color="slate"
             />
-            <KpiCard label="ÉCHECS" value={kpis.echecs} color="red" />
+            <KpiCard label="ÉCHECS" value={kpis.echecs} color="red"
+              subValue={`${kpis.echecsPieces} pièces`} />
           </div>
 
           {/* À VÉRIFIER — only show if non-zero */}
