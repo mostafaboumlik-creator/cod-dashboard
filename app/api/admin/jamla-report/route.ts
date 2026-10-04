@@ -143,6 +143,27 @@ export async function GET(request: NextRequest) {
   const aVerifier               = aVerifierRows.length
   const aVerifierPieces         = pieces(aVerifierRows)
 
+  const confiesPacks            = confiesPieces / 12
+  const ramassePacks            = ramassePieces / 12
+  const livresPacks             = livresPieces / 12
+  const enAttenteRamassagePacks = enAttenteRamassagePieces / 12
+  const enSuspensPacks          = enSuspensPieces / 12
+  const retourARecevoirPacks    = retourARecevoirPieces / 12
+  const retourRecusPacks        = retourRecusPieces / 12
+  const echecsPacks             = echecsPieces / 12
+  const aVerifierPacks          = aVerifierPieces / 12
+
+  const dailyRamassages = Array.from(
+    ramassesRows.reduce((map, r) => {
+      if (!r.ameex_sent_at) return map
+      const date = r.ameex_sent_at.split('T')[0]
+      const prev = map.get(date) || { colis: 0, pieces: 0 }
+      map.set(date, { colis: prev.colis + 1, pieces: prev.pieces + (r.quantity || 0) })
+      return map
+    }, new Map<string, { colis: number; pieces: number }>())
+  ).map(([date, v]) => ({ date, colis: v.colis, pieces: v.pieces, packs: v.pieces / 12 }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
   const sumExclusive = enAttenteRamassage + livres + echecs + retourARecevoir + retourRecus + enSuspens + aVerifier
   const reconciliationOk = sumExclusive === confies
 
@@ -156,22 +177,31 @@ export async function GET(request: NextRequest) {
   const kpis = {
     confies,
     confiesPieces,
+    confiesPacks,
     ramasses,
     ramassePieces,
+    ramassePacks,
     livres,
     livresPieces,
+    livresPacks,
     enAttenteRamassage,
     enAttenteRamassagePieces,
+    enAttenteRamassagePacks,
     enSuspens,
     enSuspensPieces,
+    enSuspensPacks,
     retourARecevoir,
     retourARecevoirPieces,
+    retourARecevoirPacks,
     retourRecus,
     retourRecusPieces,
+    retourRecusPacks,
     echecs,
     echecsPieces,
+    echecsPacks,
     aVerifier,
     aVerifierPieces,
+    aVerifierPacks,
     tauxLivraison,
     codARecevoirDAmeex,
     reconciliationOk,
@@ -179,7 +209,7 @@ export async function GET(request: NextRequest) {
 
   if (format === 'csv') {
     const BOM = '﻿'
-    const headers = ['Date AMEEX', 'Client', 'Téléphone', 'Ville', 'Quantité (pièces)', 'COD (DH)', 'Statut', 'Catégorie', 'Code suivi', 'Retour reçu le']
+    const headers = ['Date AMEEX', 'Client', 'Téléphone', 'Ville', 'Quantité (pièces)', 'Packs', 'COD (DH)', 'Statut', 'Catégorie', 'Code suivi', 'Retour reçu le']
 
     const STATUS_FR: Record<string, string> = {
       confirmed: 'Confirmé', picked_up: 'Ramassé', received_hub: 'Reçu agence',
@@ -195,6 +225,7 @@ export async function GET(request: NextRequest) {
       r.customer_phone || '',
       r.city || '',
       r.quantity != null ? String(r.quantity) : '',
+      r.quantity != null ? (Number.isInteger(r.quantity / 12) ? String(r.quantity / 12) : (r.quantity / 12).toFixed(2)) : '',
       String(r.cod),
       STATUS_FR[r.status] || r.status,
       CATEGORIE_FR[r.categorie] || r.categorie,
@@ -212,5 +243,5 @@ export async function GET(request: NextRequest) {
     })
   }
 
-  return NextResponse.json({ kpis, orders: rows })
+  return NextResponse.json({ kpis, orders: rows, dailyRamassages })
 }

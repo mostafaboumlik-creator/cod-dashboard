@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
+const PACK_SIZE = 12
+
 interface JamlaOrder {
   id: string
   status: string
@@ -18,25 +20,41 @@ interface JamlaOrder {
   cod: number
 }
 
+interface DailyRamassage {
+  date: string
+  colis: number
+  pieces: number
+  packs: number
+}
+
 interface ReportKpis {
   confies: number
   confiesPieces: number
+  confiesPacks: number
   ramasses: number
   ramassePieces: number
+  ramassePacks: number
   livres: number
   livresPieces: number
+  livresPacks: number
   enAttenteRamassage: number
   enAttenteRamassagePieces: number
+  enAttenteRamassagePacks: number
   enSuspens: number
   enSuspensPieces: number
+  enSuspensPacks: number
   retourARecevoir: number
   retourARecevoirPieces: number
+  retourARecevoirPacks: number
   retourRecus: number
   retourRecusPieces: number
+  retourRecusPacks: number
   echecs: number
   echecsPieces: number
+  echecsPacks: number
   aVerifier: number
   aVerifierPieces: number
+  aVerifierPacks: number
   tauxLivraison: number
   codARecevoirDAmeex: number
   reconciliationOk: boolean
@@ -45,6 +63,7 @@ interface ReportKpis {
 interface ReportData {
   kpis: ReportKpis
   orders: JamlaOrder[]
+  dailyRamassages: DailyRamassage[]
 }
 
 const STATUS_FR: Record<string, string> = {
@@ -85,6 +104,21 @@ function defaultDates() {
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' })
+}
+
+function fmtPacks(p: number): string {
+  return Number.isInteger(p) ? String(p) : p.toFixed(1)
+}
+
+function PacksCell({ quantity }: { quantity: number | null }) {
+  if (quantity == null) return <span className="text-slate-500">—</span>
+  const anomaly = quantity % PACK_SIZE !== 0
+  const packsVal = quantity / PACK_SIZE
+  return (
+    <span className={anomaly ? 'text-amber-400' : 'text-slate-300'} title={anomaly ? 'Quantité à vérifier (non multiple de 12)' : undefined}>
+      {anomaly ? `${packsVal.toFixed(1)} ⚠` : String(packsVal)}
+    </span>
+  )
 }
 
 export function JamlaReport() {
@@ -139,6 +173,7 @@ export function JamlaReport() {
 
   const kpis = data?.kpis
   const orders = data?.orders || []
+  const dailyRamassages = data?.dailyRamassages || []
 
   return (
     <div className="min-h-screen bg-[#060b18] p-6 space-y-6">
@@ -213,16 +248,16 @@ export function JamlaReport() {
         </div>
       )}
 
-      {/* KPI grid row 1: flux + taux */}
+      {/* KPI grids */}
       {kpis && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <KpiCard label="COLIS CONFIÉS" value={kpis.confies} color="slate"
-              subValue={`${kpis.confiesPieces} pièces`} />
+              subValues={[`${fmtPacks(kpis.confiesPacks)} packs`, `${kpis.confiesPieces} pièces`]} />
             <KpiCard label="RAMASSÉS" value={kpis.ramasses} color="blue" hint="flux"
-              subValue={`${kpis.ramassePieces} pièces`} />
+              subValues={[`${fmtPacks(kpis.ramassePacks)} packs`, `${kpis.ramassePieces} pièces`]} />
             <KpiCard label="LIVRÉS" value={kpis.livres} color="emerald"
-              subValue={`${kpis.livresPieces} pièces`} />
+              subValues={[`${fmtPacks(kpis.livresPacks)} packs`, `${kpis.livresPieces} pièces`]} />
             <KpiCard
               label="TAUX LIVRAISON"
               value={`${kpis.tauxLivraison}%`}
@@ -231,29 +266,27 @@ export function JamlaReport() {
             />
           </div>
 
-          {/* KPI grid row 2: états */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
             <KpiCard label="EN ATTENTE RAMASSAGE" value={kpis.enAttenteRamassage} color="indigo"
-              subValue={`${kpis.enAttenteRamassagePieces} pièces`} />
+              subValues={[`${fmtPacks(kpis.enAttenteRamassagePacks)} packs`, `${kpis.enAttenteRamassagePieces} pièces`]} />
             <KpiCard label="EN SUSPENS" value={kpis.enSuspens} color="yellow"
-              subValue={`${kpis.enSuspensPieces} pièces`} />
+              subValues={[`${fmtPacks(kpis.enSuspensPacks)} packs`, `${kpis.enSuspensPieces} pièces`]} />
             <KpiCard
               label="RETOURS À RECEVOIR D'AMEEX"
               value={kpis.retourARecevoir}
-              subValue={`${kpis.retourARecevoirPieces} pièces`}
+              subValues={[`${fmtPacks(kpis.retourARecevoirPacks)} packs`, `${kpis.retourARecevoirPieces} pièces`]}
               color="orange"
             />
             <KpiCard
               label="RETOURS REÇUS"
               value={kpis.retourRecus}
-              subValue={`${kpis.retourRecusPieces} pièces`}
+              subValues={[`${fmtPacks(kpis.retourRecusPacks)} packs`, `${kpis.retourRecusPieces} pièces`]}
               color="slate"
             />
             <KpiCard label="ÉCHECS" value={kpis.echecs} color="red"
-              subValue={`${kpis.echecsPieces} pièces`} />
+              subValues={[`${fmtPacks(kpis.echecsPacks)} packs`, `${kpis.echecsPieces} pièces`]} />
           </div>
 
-          {/* À VÉRIFIER — only show if non-zero */}
           {kpis.aVerifier > 0 && (
             <div className="border border-amber-600/40 bg-amber-900/10 rounded-xl p-4 flex items-center gap-4">
               <div className="text-amber-400">
@@ -263,14 +296,55 @@ export function JamlaReport() {
               </div>
               <div>
                 <p className="text-amber-300 text-sm font-medium uppercase tracking-wide">À VÉRIFIER</p>
-                <p className="text-2xl font-bold text-white">{kpis.aVerifier} <span className="text-sm text-amber-400 font-normal">colis</span>
-                  {kpis.aVerifierPieces > 0 && <span className="text-sm text-slate-400 font-normal ml-2">· {kpis.aVerifierPieces} pièces</span>}
+                <p className="text-2xl font-bold text-white">
+                  {kpis.aVerifier} <span className="text-sm text-amber-400 font-normal">colis</span>
+                  <span className="text-sm text-slate-400 font-normal ml-3">{fmtPacks(kpis.aVerifierPacks)} packs · {kpis.aVerifierPieces} pièces</span>
                 </p>
                 <p className="text-slate-400 text-xs">Statuts non classifiés — vérification manuelle requise</p>
               </div>
             </div>
           )}
         </>
+      )}
+
+      {/* Daily ramassage breakdown */}
+      {dailyRamassages.length > 0 && (
+        <div className="bg-slate-800/50 border border-slate-700 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-700">
+            <h2 className="text-white font-medium text-sm">Colis ramassés — regroupés par date d&apos;envoi AMEEX</h2>
+            <p className="text-slate-500 text-xs mt-0.5">La date correspond à l&apos;envoi AMEEX, pas nécessairement au ramassage physique.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-700 text-slate-400 text-xs uppercase">
+                  <th className="px-4 py-2 text-left">Date envoi AMEEX</th>
+                  <th className="px-4 py-2 text-right">Colis ramassés</th>
+                  <th className="px-4 py-2 text-right">Packs</th>
+                  <th className="px-4 py-2 text-right">Pièces</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700/50">
+                {dailyRamassages.map(row => (
+                  <tr key={row.date} className="hover:bg-slate-700/20 transition-colors">
+                    <td className="px-4 py-2 text-slate-300 whitespace-nowrap">
+                      {new Date(row.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </td>
+                    <td className="px-4 py-2 text-right text-white font-medium">{row.colis}</td>
+                    <td className="px-4 py-2 text-right text-slate-200">{fmtPacks(row.packs)}</td>
+                    <td className="px-4 py-2 text-right text-slate-400">{row.pieces}</td>
+                  </tr>
+                ))}
+                <tr className="border-t border-slate-600 bg-slate-700/20">
+                  <td className="px-4 py-2 text-slate-300 font-medium text-xs uppercase">Total</td>
+                  <td className="px-4 py-2 text-right text-white font-bold">{dailyRamassages.reduce((a, r) => a + r.colis, 0)}</td>
+                  <td className="px-4 py-2 text-right text-slate-200 font-bold">{fmtPacks(dailyRamassages.reduce((a, r) => a + r.packs, 0))}</td>
+                  <td className="px-4 py-2 text-right text-slate-400 font-bold">{dailyRamassages.reduce((a, r) => a + r.pieces, 0)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* Orders table */}
@@ -286,6 +360,7 @@ export function JamlaReport() {
                 <th className="px-4 py-3 text-left">Client</th>
                 <th className="px-4 py-3 text-left">Ville</th>
                 <th className="px-4 py-3 text-right">Qté</th>
+                <th className="px-4 py-3 text-right">Packs</th>
                 <th className="px-4 py-3 text-right">COD</th>
                 <th className="px-4 py-3 text-left">Statut</th>
                 <th className="px-4 py-3 text-left">Catégorie</th>
@@ -307,10 +382,10 @@ export function JamlaReport() {
                   </td>
                   <td className="px-4 py-3 text-slate-300">{order.city || '—'}</td>
                   <td className="px-4 py-3 text-right text-slate-300">
-                    {order.quantity != null
-                      ? <span title={`${Math.floor(order.quantity / 12)} pack(s)`}>{order.quantity}</span>
-                      : '—'
-                    }
+                    {order.quantity != null ? order.quantity : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <PacksCell quantity={order.quantity} />
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-white whitespace-nowrap">{order.cod} DH</td>
                   <td className="px-4 py-3">
@@ -354,7 +429,7 @@ export function JamlaReport() {
               ))}
               {orders.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={11} className="px-4 py-8 text-center text-slate-500">
                     Aucun colis trouvé sur cette période
                   </td>
                 </tr>
@@ -367,12 +442,12 @@ export function JamlaReport() {
   )
 }
 
-function KpiCard({ label, value, color, hint, subValue }: {
+function KpiCard({ label, value, color, hint, subValues }: {
   label: string
   value: number | string
   color: 'slate' | 'blue' | 'emerald' | 'yellow' | 'red' | 'indigo' | 'orange'
   hint?: string
-  subValue?: string
+  subValues?: string[]
 }) {
   const colorMap = {
     slate:   { card: 'bg-slate-800/50 border-slate-700', text: 'text-white', label: 'text-slate-400' },
@@ -390,8 +465,10 @@ function KpiCard({ label, value, color, hint, subValue }: {
         {label}
         {hint && <span className="ml-1 normal-case text-slate-500 text-xs">({hint})</span>}
       </p>
-      <p className={`text-2xl font-bold mt-1 ${c.text}`}>{value}</p>
-      {subValue && <p className="text-xs text-slate-500 mt-0.5">{subValue}</p>}
+      <p className={`text-2xl font-bold mt-1 ${c.text}`}>{value} <span className="text-sm font-normal text-slate-500">colis</span></p>
+      {subValues?.map((v, i) => (
+        <p key={i} className="text-xs text-slate-500 mt-0.5">{v}</p>
+      ))}
     </div>
   )
 }
