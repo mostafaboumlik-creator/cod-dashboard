@@ -84,6 +84,7 @@ export interface Order {
   customer_type?: 'jamla' | 'pro' | 'perso' | null
   tracking_code?: string | null
   ameex_sent_at?: string | null
+  return_received_at?: string | null
   created_at: string
   confirmed_at: string | null
   delivered_at: string | null
