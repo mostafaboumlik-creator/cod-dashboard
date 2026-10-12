@@ -111,5 +111,12 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Auto-record followup (order_obtained) — non-blocking, ignore failure
+  await supabase.from('customer_followups').insert({
+    customer_phone: String(customer_phone).trim().replace(/\s/g, ''),
+    agent_id: session.user.id,
+    result: 'order_obtained',
+  })
+
   return NextResponse.json({ success: true })
 }
