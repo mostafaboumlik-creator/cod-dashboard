@@ -47,21 +47,24 @@ export function AgentsManager({ initialAgents, mediaBuyers, initialAssignments, 
       if (dateTo && d > dateTo) return false
       return true
     })
-    const total = agentOrders.length
-    const processed = agentOrders.filter(o => STATUS_PROCESSED.includes(o.status)).length
-    const confirmed = agentOrders.filter(o => ['confirmed', 'delivered', 'returned'].includes(o.status)).length
-    const delivered = agentOrders.filter(o => o.status === 'delivered')
+    // Acquisition-only: excludes order_source='relance' from conversion KPIs
+    const acqOrders = agentOrders.filter((o: any) => o.order_source !== 'relance')
+    const total = acqOrders.length
+    const processed = acqOrders.filter((o: any) => STATUS_PROCESSED.includes(o.status)).length
+    const confirmed = acqOrders.filter((o: any) => ['confirmed', 'delivered', 'returned'].includes(o.status)).length
     const confirmRate = processed > 0 ? (confirmed / processed) * 100 : 0
     const agent = agents.find(a => a.id === agentId)
     const rate = agent?.commission_rate || 10
 
-    const commission = delivered.reduce((sum, o) => {
+    // Commission: all delivered orders including relance (real sales)
+    const delivered = agentOrders.filter((o: any) => o.status === 'delivered')
+    const commission = delivered.reduce((sum: number, o: any) => {
       const np = o.selling_price - o.product_cost - o.packaging_cost - o.delivery_cost - o.call_center_cost - (o.ad_spend || 0)
       return np > 0 ? sum + (np * rate / 100) : sum
     }, 0)
 
-    const deliveryNoAnswer = agentOrders.filter(o => o.status === 'delivery_no_answer').length
-    const lead = agentOrders.filter(o => o.status === 'lead').length
+    const deliveryNoAnswer = acqOrders.filter((o: any) => o.status === 'delivery_no_answer').length
+    const lead = acqOrders.filter((o: any) => o.status === 'lead').length
 
     return { total, processed, confirmed, delivered: delivered.length, confirmRate, commission, deliveryNoAnswer, lead }
   }

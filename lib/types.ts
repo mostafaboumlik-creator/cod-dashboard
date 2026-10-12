@@ -82,6 +82,7 @@ export interface Order {
   quantity?: number | null
   payment_mode?: string | null
   customer_type?: 'jamla' | 'pro' | 'perso' | null
+  order_source?: 'acquisition' | 'relance' | null
   tracking_code?: string | null
   ameex_sent_at?: string | null
   return_received_at?: string | null

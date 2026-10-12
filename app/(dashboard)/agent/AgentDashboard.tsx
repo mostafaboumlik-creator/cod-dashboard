@@ -122,7 +122,7 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
   const today = new Date().toISOString().slice(0, 10)
 
   const JAMLA_PRODUCT_ID = 'c0a1618b-75b9-4b0b-8d22-058757a79bba'
-  const ORDER_SELECT = 'id, media_buyer_id, product_id, status, selling_price, product_cost, packaging_cost, delivery_cost, call_center_cost, ad_spend, campaign_name, ad_platform, customer_name, customer_phone, city, notes, product_variant, address1, address2, youcan_order_id, second_contact, day1_contact, confirmed_by, tracking_code, ameex_sent_at, created_at, confirmed_at, delivered_at, quantity, payment_mode, customer_type, products(id, name, pack_size)'
+  const ORDER_SELECT = 'id, media_buyer_id, product_id, status, selling_price, product_cost, packaging_cost, delivery_cost, call_center_cost, ad_spend, campaign_name, ad_platform, customer_name, customer_phone, city, notes, product_variant, address1, address2, youcan_order_id, second_contact, day1_contact, confirmed_by, tracking_code, ameex_sent_at, created_at, confirmed_at, delivered_at, quantity, payment_mode, customer_type, order_source, products(id, name, pack_size)'
 
   useEffect(() => {
     const assignedBuyerIds = new Set(assignedBuyers.map(b => b.id))
@@ -175,12 +175,15 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
       if (dateTo && d > dateTo) return false
       return true
     })
-    const total = dateFiltered.length
-    const processedTotal = dateFiltered.filter(o => PROCESSED.includes(o.status)).length
+    // Acquisition-only: excludes order_source='relance' from conversion KPIs
+    const acqFiltered = dateFiltered.filter(o => o.order_source !== 'relance')
+    const total = acqFiltered.length
+    const processedTotal = acqFiltered.filter(o => PROCESSED.includes(o.status)).length
     const processedRate = total > 0 ? (processedTotal / total) * 100 : 0
-    const leadsToday = orders.filter(o => o.created_at?.slice(0, 10) === today).length
+    const leadsToday = orders.filter(o => o.created_at?.slice(0, 10) === today && o.order_source !== 'relance').length
     // confirmedCount = leads confirmés aujourd'hui (confirmed_at) — pour la carte "Confirmés du jour"
     const confirmedCount = orders.filter(o => {
+      if (o.order_source === 'relance') return false
       const d = o.confirmed_at?.slice(0, 10)
       if (!d) return false
       if (dateFrom && d < dateFrom) return false
@@ -189,18 +192,19 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
     }).length
     // Taux confirmation = leads créés dans la période ET actuellement confirmés (même base created_at)
     const CONFIRMED_STATUSES = ['confirmed', 'picked_up', 'received_hub', 'address_issue', 'in_delivery', 'out_of_zone', 'refused', 'preparing_return', 'redirect_city', 'delivery_no_answer', 'postponed', 'delivered', 'returned']
-    const confirmedFromSameDay = dateFiltered.filter(o => CONFIRMED_STATUSES.includes(o.status)).length
+    const confirmedFromSameDay = acqFiltered.filter(o => CONFIRMED_STATUSES.includes(o.status)).length
     const confirmRate = total > 0 ? (confirmedFromSameDay / total) * 100 : 0
+    // Commission: all delivered orders including relance (real sales)
     const deliveredOrders = dateFiltered.filter(o => o.status === 'delivered')
     const commission = deliveredOrders.reduce((sum, o) => {
       const np = o.selling_price - o.product_cost - o.packaging_cost - o.delivery_cost - o.call_center_cost - (o.ad_spend || 0)
       return np > 0 ? sum + (np * agentProfile.commission_rate / 100) : sum
     }, 0)
-    const deliveryNoAnswer = dateFiltered.filter(o => o.status === 'delivery_no_answer').length
-    const totalQueue = dateFiltered.filter(o => o.status === 'lead').length // File d'attente = leads frais uniquement
-    const retryCount = dateFiltered.filter(o => ['no_reply', 'unreachable'].includes(o.status)).length
-    const callbackCount = dateFiltered.filter(o => o.status === 'call_later').length
-    const cancelledCount = dateFiltered.filter(o => ['cancelled', 'wrong_number', 'duplicate', 'out_of_stock'].includes(o.status)).length
+    const deliveryNoAnswer = acqFiltered.filter(o => o.status === 'delivery_no_answer').length
+    const totalQueue = acqFiltered.filter(o => o.status === 'lead').length // File d'attente = leads frais uniquement
+    const retryCount = acqFiltered.filter(o => ['no_reply', 'unreachable'].includes(o.status)).length
+    const callbackCount = acqFiltered.filter(o => o.status === 'call_later').length
+    const cancelledCount = acqFiltered.filter(o => ['cancelled', 'wrong_number', 'duplicate', 'out_of_stock'].includes(o.status)).length
     const untreated = totalQueue
     const treatedInQueue = retryCount + callbackCount
     const confirmedTotal = dateFiltered.filter(o => ['confirmed', 'delivered', 'returned'].includes(o.status)).length
