@@ -1,13 +1,12 @@
 'use client'
 
-import { useState, useMemo, useEffect, useRef, Fragment } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useMemo, useEffect, useRef, useCallback, Fragment } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { formatCurrency, formatPercent } from '@/lib/utils'
 import { format } from 'date-fns'
-import type { OrderStatus } from '@/lib/types'
+import type { Order, OrderStatus } from '@/lib/types'
 
 interface Props {
   agentId: string
@@ -90,7 +89,6 @@ function PhoneHistoryBadge({ data }: { data: any }) {
 }
 
 export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedBuyers, allProducts }: Props) {
-  const router = useRouter()
   const prevInitialIds = useRef(new Set(initialOrders.map((o: any) => o.id)))
   const [orders, setOrders] = useState<any[]>(initialOrders)
   const [activeTab, setActiveTab] = useState<Tab>('queue')
@@ -149,9 +147,32 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
     return () => { supabase.removeChannel(channel) }
   }, [assignedBuyers])
 
-  // Auto-refresh server data every 20s to pick up new leads
+  // Poll léger toutes les 20s (commandes récentes uniquement) pour récupérer les nouveaux leads
   useEffect(() => {
-    const poll = setInterval(() => router.refresh(), 20000)
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch('/api/agent/orders/recent', { cache: 'no-store' })
+        if (!res.ok) return
+        const recent: Order[] = await res.json()
+        // Ajoute les nouvelles commandes et met à jour celles qui ont changé
+        // (le Realtime client dépend des policies RLS ; ce poll service-role sert de filet)
+        setOrders(prev => {
+          const byId = new Map(recent.map(o => [o.id, o]))
+          let changed = false
+          const updated = prev.map(x => {
+            const r = byId.get(x.id)
+            if (!r) return x
+            byId.delete(x.id)
+            if (JSON.stringify(r) === JSON.stringify(x)) return x
+            changed = true
+            return r
+          })
+          const toAdd = Array.from(byId.values())
+          if (toAdd.length === 0 && !changed) return prev
+          return [...toAdd, ...updated]
+        })
+      } catch {}
+    }, 20000)
     return () => clearInterval(poll)
   }, [])
 
@@ -213,39 +234,50 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
   }, [orders, dateFrom, dateTo])
 
 
-  const filtered = useMemo(() => {
-    const tab = TABS.find(t => t.key === activeTab)!
-    return orders.filter(o => {
-      if (tab.statuses.length > 0 && !tab.statuses.includes(o.status)) return false
-      if (filterBuyer !== 'all' && o.media_buyer_id !== filterBuyer) return false
-      if (filterProduct !== 'all' && o.product_id !== filterProduct) return false
-      if (filterAmeex !== 'all' && o.status === 'confirmed') {
-        if (filterAmeex === 'pending' && (o.ameex_sent_at || o.tracking_code)) return false
-        if (filterAmeex === 'sent' && !o.ameex_sent_at && !o.tracking_code) return false
-      }
-      if (activeTab === 'queue' && filterQueueType !== 'all') {
-        if (filterQueueType === 'untreated' && o.status !== 'lead') return false
-        if (filterQueueType === 'treated' && o.status === 'lead') return false
-      }
+  // Filtres partagés par le tableau et les compteurs d'onglets (même périmètre)
+  const matchesFilters = useCallback((o: Order, tabKey: Tab, ignoreDate = false) => {
+    const tab = TABS.find(t => t.key === tabKey)!
+    if (tab.statuses.length > 0 && !tab.statuses.includes(o.status)) return false
+    if (filterBuyer !== 'all' && o.media_buyer_id !== filterBuyer) return false
+    if (filterProduct !== 'all' && o.product_id !== filterProduct) return false
+    if (filterAmeex !== 'all' && o.status === 'confirmed') {
+      if (filterAmeex === 'pending' && (o.ameex_sent_at || o.tracking_code)) return false
+      if (filterAmeex === 'sent' && !o.ameex_sent_at && !o.tracking_code) return false
+    }
+    if (tabKey === 'queue' && filterQueueType !== 'all') {
+      if (filterQueueType === 'untreated' && o.status !== 'lead') return false
+      if (filterQueueType === 'treated' && o.status === 'lead') return false
+    }
+    if (!ignoreDate) {
       const d = o.created_at?.slice(0, 10)
       if (dateFrom && d < dateFrom) return false
       if (dateTo && d > dateTo) return false
-      if (search) {
-        const s = search.toLowerCase()
-        const name = o.customer_name?.toLowerCase() || ''
-        const phone = o.customer_phone?.toLowerCase() || ''
-        if (!name.includes(s) && !phone.includes(s)) return false
-      }
-      return true
-    })
-  }, [orders, activeTab, filterBuyer, filterProduct, filterAmeex, filterQueueType, search, dateFrom, dateTo])
+    }
+    if (search) {
+      const s = search.toLowerCase()
+      const name = o.customer_name?.toLowerCase() || ''
+      const phone = o.customer_phone?.toLowerCase() || ''
+      if (!name.includes(s) && !phone.includes(s)) return false
+    }
+    return true
+  }, [filterBuyer, filterProduct, filterAmeex, filterQueueType, search, dateFrom, dateTo])
+
+  const filtered = useMemo(
+    () => orders.filter(o => matchesFilters(o, activeTab)),
+    [orders, activeTab, matchesFilters]
+  )
 
   const tabCounts = useMemo(() => {
-    return Object.fromEntries(TABS.map(t => [
-      t.key,
-      t.statuses.length > 0 ? orders.filter(o => t.statuses.includes(o.status)).length : orders.length
-    ]))
-  }, [orders])
+    return Object.fromEntries(TABS.map(t => [t.key, orders.filter(o => matchesFilters(o, t.key)).length]))
+  }, [orders, matchesFilters])
+
+  // Backlog : leads en file d'attente hors de la période sélectionnée (jamais masqués silencieusement)
+  const backlog = useMemo(() => {
+    if (!dateFrom && !dateTo) return { count: 0, oldest: null as string | null }
+    const out = orders.filter(o => matchesFilters(o, 'queue', true) && !matchesFilters(o, 'queue'))
+    const oldest = out.reduce<string | null>((min, o) => (!min || o.created_at < min ? o.created_at : min), null)
+    return { count: out.length, oldest }
+  }, [orders, matchesFilters, dateFrom, dateTo])
 
   async function handleStatus(orderId: string, newStatus: OrderStatus) {
     setUpdating(orderId)
@@ -537,6 +569,20 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
         </div>
       </div>
 
+      {/* Backlog hors période */}
+      {backlog.count > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-orange-500/10 border border-orange-500/30 rounded-xl px-4 py-2">
+          <p className="text-sm text-orange-300">
+            ⚠ {backlog.count} lead{backlog.count > 1 ? 's' : ''} en file d&apos;attente hors de la période sélectionnée
+            {backlog.oldest && ` (le plus ancien : ${new Date(backlog.oldest).toLocaleDateString('fr-FR')})`}
+          </p>
+          <button
+            onClick={() => { setDateFrom(''); setDateTo(''); setActiveTab('queue') }}
+            className="text-xs px-3 py-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-400 transition-colors"
+          >Afficher</button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex flex-wrap gap-1 bg-slate-800/50 rounded-xl p-1">
         {TABS.map(t => {
@@ -560,7 +606,7 @@ export function AgentDashboard({ agentId, agentProfile, initialOrders, assignedB
           >
             {t.label}
             <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === t.key ? 'bg-white/20' : 'bg-slate-700'}`}>
-              {count}
+              {count}{t.key === 'queue' && backlog.count > 0 && ` · +${backlog.count}`}
             </span>
           </button>
           )}

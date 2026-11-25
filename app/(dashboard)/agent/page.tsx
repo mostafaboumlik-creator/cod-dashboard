@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import { AgentDashboard } from './AgentDashboard'
+import { fetchAllAgentOrders } from '@/lib/agent-orders'
 
 export default async function AgentPage() {
   const supabase = await createClient()
@@ -27,16 +28,8 @@ export default async function AgentPage() {
 
   const buyerIds = assignments?.map(a => a.buyer_id) || []
 
-  let orders: any[] = []
-  if (buyerIds.length > 0) {
-    const { data } = await serviceClient
-      .from('orders')
-      .select('*, products(id, name, pack_size)')
-      .in('media_buyer_id', buyerIds)
-      .order('created_at', { ascending: false })
-      .limit(2000)
-    orders = data || []
-  }
+  // Historique complet (paginé) : aucun ancien lead masqué, compteurs exacts
+  const orders = await fetchAllAgentOrders(serviceClient, buyerIds)
 
   const { data: buyers } = await serviceClient
     .from('profiles')
